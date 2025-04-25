@@ -1,0 +1,15 @@
+{
+  "name": "bet_bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "Discord betting bot",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.5.0"
+  }
+}

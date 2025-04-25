@@ -1,0 +1,28 @@
+{
+  "status": "done",
+  "team1": "cravle",
+  "team2": "vehtor",
+  "bets": [
+    {
+      "userId": "260842845651337217",
+      "team": "cravle",
+      "amount": 9300
+    },
+    {
+      "userId": "220113570065678336",
+      "team": "cravle",
+      "amount": 5500
+    },
+    {
+      "userId": "305771527356416003",
+      "team": "cravle",
+      "amount": 400
+    },
+    {
+      "userId": "932638219743395840",
+      "team": "cravle",
+      "amount": 4000
+    }
+  ],
+  "winner": "cravle"
+}
