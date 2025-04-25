@@ -1,10 +1,18 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Handles data persistence and file operations
  */
-class DataManager {
+export class DataManager {
+  private dataDir: string;
+  private balancePath: string;
+  private matchPath: string;
+  
   constructor() {
     this.dataDir = path.join(__dirname, '..', 'data');
     this.balancePath = path.join(this.dataDir, 'balances.json');
@@ -28,20 +36,18 @@ class DataManager {
   /**
    * Load and parse a JSON file
    * @param {string} filePath - Path to the JSON file
-   * @returns {Object} Parsed JSON data
+   * @returns {any} Parsed JSON data
    */
-  loadJson(filePath) {
+  loadJson(filePath: string): any {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   }
 
   /**
    * Save data to a JSON file
    * @param {string} filePath - Path to save the file
-   * @param {Object} data - Data to save
+   * @param {any} data - Data to save
    */
-  saveJson(filePath, data) {
+  saveJson(filePath: string, data: any): void {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
   }
-}
-
-module.exports = DataManager; 
+} 

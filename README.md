@@ -1,6 +1,6 @@
 # Discord Betting Bot
 
-A Discord bot for managing bets on team matches with SQLite database storage.
+A Discord bot for managing bets on team matches with SQLite database storage. Built with TypeScript and ESM.
 
 ## Features
 
@@ -13,6 +13,7 @@ A Discord bot for managing bets on team matches with SQLite database storage.
 - Transaction history tracking
 - User bet history
 - SQLite database for reliable data storage
+- TypeScript support for better type safety
 
 ## Project Structure
 
@@ -22,18 +23,25 @@ A Discord bot for managing bets on team matches with SQLite database storage.
 │   └── betting.db           # SQLite database file
 ├── src/                     # Source code
 │   ├── database/            # Database related code
-│   │   ├── Database.js      # SQLite connection manager
+│   │   ├── Database.ts      # SQLite connection manager
 │   │   └── repositories/    # Repository classes
-│   │       ├── UserRepository.js       # User data operations
-│   │       ├── MatchRepository.js      # Match data operations
-│   │       ├── BetRepository.js        # Bet data operations
-│   │       └── TransactionRepository.js # Transaction data operations
+│   │       ├── UserRepository.ts       # User data operations
+│   │       ├── MatchRepository.ts      # Match data operations
+│   │       ├── BetRepository.ts        # Bet data operations
+│   │       └── TransactionRepository.ts # Transaction data operations
 │   ├── migrations/          # Database migrations
-│   │   └── migrateJsonToSqlite.js # Migration from JSON to SQLite
-│   ├── BalanceManager.js    # Balance management logic
-│   ├── MatchManager.js      # Match and betting logic
-│   └── BetBot.js            # Main Discord bot class
-├── index.js                 # Entry point
+│   │   └── migrateJsonToSqlite.ts # Migration from JSON to SQLite
+│   ├── scripts/             # Utility scripts
+│   │   ├── syncAllUsers.ts  # Sync all users from Discord
+│   │   └── updateUserNames.ts # Update existing user names
+│   ├── types/               # TypeScript type definitions
+│   │   └── index.ts         # Shared types across the project
+│   ├── BalanceManager.ts    # Balance management logic
+│   ├── MatchManager.ts      # Match and betting logic
+│   └── BetBot.ts            # Main Discord bot class
+├── dist/                    # Compiled JavaScript files (generated)
+├── index.ts                 # Entry point
+├── tsconfig.json            # TypeScript configuration
 ├── .env                     # Environment variables (Discord token)
 └── README.md                # This file
 ```
@@ -49,23 +57,28 @@ A Discord bot for managing bets on team matches with SQLite database storage.
    ```
    DISCORD_TOKEN=your_token_here
    ```
-4. If you have existing JSON data and want to migrate it to SQLite:
+4. Build the TypeScript code:
+   ```
+   npm run build
+   ```
+5. If you have existing JSON data and want to migrate it to SQLite:
    ```
    npm run migrate
    ```
-5. Synchronize user information with Discord (recommended):
+6. Synchronize user information with Discord (recommended):
    ```
    npm run sync-users
    ```
-6. Start the bot:
+7. Start the bot:
    ```
    npm start
    ```
 
 ## Scripts
 
-- `npm start` - Start the bot
-- `npm run dev` - Start the bot with hot reloading using nodemon
+- `npm run build` - Compile TypeScript to JavaScript
+- `npm start` - Start the bot using compiled JavaScript
+- `npm run dev` - Start the bot in development mode with hot reloading
 - `npm run migrate` - Migrate from JSON to SQLite database
 - `npm run update-users` - Update names of existing users from Discord
 - `npm run sync-users` - Sync all Discord users (add new ones and update existing)
@@ -134,6 +147,7 @@ The bot uses SQLite with the following tables:
 - discord.js - Discord API integration
 - dotenv - Environment variable management
 - better-sqlite3 - SQLite database client
+- typescript - For type safety and modern JavaScript features
 
 ## How to Get a Bot Token
 

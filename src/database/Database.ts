@@ -1,13 +1,27 @@
-const BetterSqlite3 = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+import BetterSqlite3 from 'better-sqlite3';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Get the project root directory 
+// In development: src/database/.. -> src/.. -> project root
+// In production: dist/src/database/.. -> dist/src/.. -> dist/.. -> project root
+const rootDir = path.resolve(__dirname, '..', '..', '..');
 
 /**
  * Database connection and management class
  */
 class Database {
+  private dbDir: string;
+  private dbPath: string;
+  private db: BetterSqlite3.Database;
+
   constructor() {
-    this.dbDir = path.join(__dirname, '..', '..', 'data');
+    // Always use the project root + data directory regardless of where we're running from
+    this.dbDir = path.join(rootDir, 'data');
     this.dbPath = path.join(this.dbDir, 'betting.db');
     
     // Ensure data directory exists
@@ -15,6 +29,7 @@ class Database {
       fs.mkdirSync(this.dbDir, { recursive: true });
     }
     
+    console.log(`Using database at: ${this.dbPath}`);
     this.db = new BetterSqlite3(this.dbPath);
     this.initialize();
   }
@@ -22,7 +37,7 @@ class Database {
   /**
    * Initialize database schema if it doesn't exist
    */
-  initialize() {
+  private initialize(): void {
     // Enable foreign keys
     this.db.pragma('foreign_keys = ON');
     
@@ -82,14 +97,14 @@ class Database {
    * Get the database connection instance
    * @returns {BetterSqlite3.Database} The database connection
    */
-  getConnection() {
+  getConnection(): BetterSqlite3.Database {
     return this.db;
   }
   
   /**
    * Close the database connection
    */
-  close() {
+  close(): void {
     if (this.db) {
       this.db.close();
     }
@@ -99,4 +114,4 @@ class Database {
 // Create a singleton instance
 const instance = new Database();
 
-module.exports = instance; 
+export default instance; 

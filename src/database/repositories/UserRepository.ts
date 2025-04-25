@@ -1,4 +1,5 @@
-const db = require('../Database');
+import db from '../Database.js';
+import { User } from '../../types/index.js';
 
 /**
  * Repository for handling User-related database operations
@@ -7,12 +8,10 @@ class UserRepository {
   /**
    * Create a new user or update if exists
    * 
-   * @param {Object} user - User data
-   * @param {string} user.id - Discord user ID
-   * @param {string} user.name - Discord username
-   * @returns {Object} The created/updated user
+   * @param {User} user - User data
+   * @returns {User} The created/updated user
    */
-  createOrUpdate(user) {
+  createOrUpdate(user: User): User {
     const stmt = db.getConnection().prepare(`
       INSERT INTO users (id, name, balance)
       VALUES (?, ?, ?)
@@ -21,18 +20,18 @@ class UserRepository {
       RETURNING *
     `);
     
-    return stmt.get(user.id, user.name, user.balance || 1000);
+    return stmt.get(user.id, user.name, user.balance || 1000) as User;
   }
   
   /**
    * Get a user by their Discord ID
    * 
    * @param {string} userId - Discord user ID
-   * @returns {Object|null} The user object or null if not found
+   * @returns {User|null} The user object or null if not found
    */
-  findById(userId) {
+  findById(userId: string): User | null {
     const stmt = db.getConnection().prepare('SELECT * FROM users WHERE id = ?');
-    return stmt.get(userId);
+    return stmt.get(userId) as User | null;
   }
   
   /**
@@ -41,7 +40,7 @@ class UserRepository {
    * @param {string} userId - Discord user ID
    * @returns {boolean} True if the user exists, false otherwise
    */
-  exists(userId) {
+  exists(userId: string): boolean {
     const stmt = db.getConnection().prepare('SELECT 1 FROM users WHERE id = ? LIMIT 1');
     return !!stmt.get(userId);
   }
@@ -52,9 +51,9 @@ class UserRepository {
    * @param {string} userId - Discord user ID
    * @returns {number} User balance or default balance if user doesn't exist
    */
-  getBalance(userId) {
+  getBalance(userId: string): number {
     const stmt = db.getConnection().prepare('SELECT balance FROM users WHERE id = ?');
-    const result = stmt.get(userId);
+    const result = stmt.get(userId) as { balance: number } | undefined;
     return result ? result.balance : 1000;
   }
   
@@ -63,9 +62,9 @@ class UserRepository {
    * 
    * @param {string} userId - Discord user ID
    * @param {number} amount - New balance amount
-   * @returns {Object} Updated user
+   * @returns {User} Updated user
    */
-  updateBalance(userId, amount) {
+  updateBalance(userId: string, amount: number): User {
     const stmt = db.getConnection().prepare(`
       UPDATE users
       SET balance = ?
@@ -73,7 +72,7 @@ class UserRepository {
       RETURNING *
     `);
     
-    return stmt.get(amount, userId);
+    return stmt.get(amount, userId) as User;
   }
   
   /**
@@ -81,9 +80,9 @@ class UserRepository {
    * 
    * @param {string} userId - Discord user ID
    * @param {number} amount - Amount to adjust (positive or negative)
-   * @returns {Object} Updated user with new balance
+   * @returns {User} Updated user with new balance
    */
-  adjustBalance(userId, amount) {
+  adjustBalance(userId: string, amount: number): User {
     // Create the user first if they don't exist
     if (!this.exists(userId)) {
       this.createOrUpdate({ id: userId, name: 'Unknown User', balance: 1000 });
@@ -96,16 +95,16 @@ class UserRepository {
       RETURNING *
     `);
     
-    return stmt.get(amount, userId);
+    return stmt.get(amount, userId) as User;
   }
   
   /**
    * Get top users by balance
    * 
    * @param {number} limit - Maximum number of users to return
-   * @returns {Array} Array of users sorted by balance
+   * @returns {User[]} Array of users sorted by balance
    */
-  getLeaderboard(limit = 5) {
+  getLeaderboard(limit: number = 5): User[] {
     const stmt = db.getConnection().prepare(`
       SELECT id, name, balance
       FROM users
@@ -113,8 +112,9 @@ class UserRepository {
       LIMIT ?
     `);
     
-    return stmt.all(limit);
+    return stmt.all(limit) as User[];
   }
 }
 
-module.exports = new UserRepository(); 
+// Export as singleton
+export default new UserRepository(); 

@@ -1,21 +1,28 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Import repositories and database
-const db = require('../database/Database');
-const userRepository = require('../database/repositories/UserRepository');
-const matchRepository = require('../database/repositories/MatchRepository');
-const betRepository = require('../database/repositories/BetRepository');
-const transactionRepository = require('../database/repositories/TransactionRepository');
+import db from '../database/Database.js';
+import userRepository from '../database/repositories/UserRepository.js';
+import matchRepository from '../database/repositories/MatchRepository.js';
+import betRepository from '../database/repositories/BetRepository.js';
+import transactionRepository from '../database/repositories/TransactionRepository.js';
 
-// Paths to JSON files
-const balancesPath = path.join(__dirname, '..', '..', 'data', 'balances.json');
-const matchPath = path.join(__dirname, '..', '..', 'data', 'match.json');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Get the project root directory
+const rootDir = path.resolve(__dirname, '..', '..');
+
+// Paths to JSON files - use rootDir to ensure consistency
+const balancesPath = path.join(rootDir, 'data', 'balances.json');
+const matchPath = path.join(rootDir, 'data', 'match.json');
 
 /**
  * Migrate balances from JSON to SQLite
  */
-function migrateBalances() {
+function migrateBalances(): number {
   if (!fs.existsSync(balancesPath)) {
     console.log('Balances file not found, skipping migration');
     return 0;
@@ -31,11 +38,11 @@ function migrateBalances() {
     userRepository.createOrUpdate({
       id: userId,
       name: 'Unknown User', // We don't have usernames in the JSON data
-      balance
+      balance: balance as number
     });
     
     // Create initial transaction for the balance
-    transactionRepository.createInitialTransaction(userId, balance);
+    transactionRepository.createInitialTransaction(userId, balance as number);
     
     migratedCount++;
   }
@@ -44,16 +51,30 @@ function migrateBalances() {
   return migratedCount;
 }
 
+interface OldBet {
+  userId: string;
+  team: string;
+  amount: number;
+}
+
+interface OldMatch {
+  team1: string;
+  team2: string;
+  status?: string;
+  winner?: string;
+  bets?: OldBet[];
+}
+
 /**
  * Migrate match and bets from JSON to SQLite
  */
-function migrateMatch() {
+function migrateMatch(): number {
   if (!fs.existsSync(matchPath)) {
     console.log('Match file not found, skipping migration');
     return 0;
   }
   
-  const matchData = JSON.parse(fs.readFileSync(matchPath, 'utf8'));
+  const matchData = JSON.parse(fs.readFileSync(matchPath, 'utf8')) as OldMatch;
   
   // Skip if no match data or match is not in a valid state
   if (!matchData || !matchData.team1 || !matchData.team2) {
@@ -67,7 +88,7 @@ function migrateMatch() {
   const match = matchRepository.create({
     team1: matchData.team1,
     team2: matchData.team2,
-    status: matchData.status || 'none'
+    status: matchData.status as 'pending' | 'done' | 'canceled' | 'none' || 'none'
   });
   
   // Set winner if match is done
@@ -81,7 +102,7 @@ function migrateMatch() {
     
     for (const bet of matchData.bets) {
       // Determine bet result based on match status and winner
-      let betResult = 'pending';
+      let betResult: 'win' | 'loss' | 'refund' | 'pending' = 'pending';
       if (matchData.status === 'done' && matchData.winner) {
         betResult = bet.team === matchData.winner ? 'win' : 'loss';
       } else if (matchData.status === 'canceled') {
@@ -95,7 +116,7 @@ function migrateMatch() {
         RETURNING *
       `);
       
-      const createdBet = stmt.get(bet.userId, match.id, bet.team, bet.amount, betResult);
+      const createdBet = stmt.get(bet.userId, match.id, bet.team, bet.amount, betResult) as any;
       
       // Create transaction for the bet
       transactionRepository.createBetTransaction(bet.userId, bet.amount, createdBet.id);
@@ -121,8 +142,9 @@ function migrateMatch() {
 /**
  * Main migration function
  */
-async function migrate() {
+async function migrate(): Promise<void> {
   console.log('Starting migration from JSON to SQLite...');
+  console.log(`Looking for JSON files at: ${balancesPath} and ${matchPath}`);
   
   try {
     // Migrate user balances
@@ -140,11 +162,11 @@ async function migrate() {
 }
 
 // Run migration if this file is executed directly
-if (require.main === module) {
+if (import.meta.url === new URL(import.meta.url).href) {
   migrate().then(() => {
     console.log('Migration script finished. Exiting...');
     process.exit(0);
   });
 }
 
-module.exports = { migrate }; 
+export { migrate }; 

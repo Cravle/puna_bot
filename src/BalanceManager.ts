@@ -1,10 +1,13 @@
-const userRepository = require('./database/repositories/UserRepository');
-const transactionRepository = require('./database/repositories/TransactionRepository');
+import userRepository from './database/repositories/UserRepository.js';
+import transactionRepository from './database/repositories/TransactionRepository.js';
+import { User } from './types/index.js';
 
 /**
  * Manages user balances and economy features
  */
-class BalanceManager {
+export class BalanceManager {
+  private START_BALANCE: number;
+
   constructor() {
     this.START_BALANCE = 1000;
   }
@@ -14,7 +17,7 @@ class BalanceManager {
    * @param {string} userId - Discord user ID
    * @returns {number} User's current balance
    */
-  getBalance(userId) {
+  getBalance(userId: string): number {
     return userRepository.getBalance(userId);
   }
 
@@ -23,15 +26,15 @@ class BalanceManager {
    * @param {string} userId - Discord user ID
    * @param {string} username - Discord username
    * @param {number} amount - New balance amount
-   * @returns {Object} Updated user
+   * @returns {User} Updated user
    */
-  setBalance(userId, username, amount) {
+  setBalance(userId: string, username: string, amount: number): User {
     // Create user if doesn't exist
     if (!userRepository.exists(userId)) {
       userRepository.createOrUpdate({ id: userId, name: username, balance: amount });
       // Record transaction for audit
       transactionRepository.createInitialTransaction(userId, amount);
-      return { id: userId, balance: amount };
+      return { id: userId, name: username, balance: amount };
     }
     
     // Update existing user
@@ -47,7 +50,13 @@ class BalanceManager {
    * @param {number} referenceId - Reference ID (optional)
    * @returns {number} New balance after adjustment
    */
-  adjustBalance(userId, username, amount, type = 'donate', referenceId = null) {
+  adjustBalance(
+    userId: string, 
+    username: string, 
+    amount: number, 
+    type: 'init' | 'bet' | 'payout' | 'refund' | 'donate' = 'donate', 
+    referenceId?: number
+  ): number {
     // Ensure user exists
     if (!userRepository.exists(userId)) {
       userRepository.createOrUpdate({ id: userId, name: username, balance: this.START_BALANCE });
@@ -72,16 +81,16 @@ class BalanceManager {
    * @param {number} limit - Maximum number of entries to return
    * @returns {Array} Array of user objects with balance info
    */
-  getLeaderboard(limit = 5) {
+  getLeaderboard(limit: number = 5): User[] {
     return userRepository.getLeaderboard(limit);
   }
 
   /**
    * Initialize balances for new guild members
-   * @param {Collection} members - Discord.js collection of guild members
+   * @param {Map<string, any>} members - Discord.js collection of guild members
    * @returns {number} Number of members who received initial balance
    */
-  initializeAllMembers(members) {
+  initializeAllMembers(members: Map<string, any>): number {
     let added = 0;
     
     // Process each member
@@ -110,9 +119,7 @@ class BalanceManager {
    * @param {number} limit - Maximum number of transactions to fetch
    * @returns {Array} User's transaction history
    */
-  getTransactionHistory(userId, limit = 10) {
+  getTransactionHistory(userId: string, limit: number = 10): any[] {
     return transactionRepository.getUserHistory(userId, limit);
   }
-}
-
-module.exports = BalanceManager; 
+} 

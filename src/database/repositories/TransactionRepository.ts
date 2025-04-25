@@ -1,4 +1,5 @@
-const db = require('../Database');
+import db from '../Database.js';
+import { Transaction, TransactionType } from '../../types/index.js';
 
 /**
  * Repository for handling Transaction-related database operations
@@ -7,14 +8,15 @@ class TransactionRepository {
   /**
    * Create a new transaction
    * 
-   * @param {Object} transaction - Transaction data
-   * @param {string} transaction.userId - Discord user ID
-   * @param {number} transaction.amount - Transaction amount (positive or negative)
-   * @param {string} transaction.type - Transaction type ('init', 'bet', 'payout', 'refund', 'donate')
-   * @param {number} [transaction.referenceId] - Reference ID (e.g., bet ID or match ID)
-   * @returns {Object} The created transaction
+   * @param {Partial<Transaction>} transaction - Transaction data
+   * @returns {Transaction} The created transaction
    */
-  create(transaction) {
+  create(transaction: {
+    userId: string;
+    amount: number;
+    type: TransactionType;
+    referenceId?: number;
+  }): Transaction {
     const stmt = db.getConnection().prepare(`
       INSERT INTO transactions (user_id, amount, type, reference_id)
       VALUES (?, ?, ?, ?)
@@ -26,28 +28,28 @@ class TransactionRepository {
       transaction.amount,
       transaction.type,
       transaction.referenceId || null
-    );
+    ) as Transaction;
   }
   
   /**
    * Get a transaction by ID
    * 
    * @param {number} transactionId - Transaction ID
-   * @returns {Object|null} The transaction object or null if not found
+   * @returns {Transaction|null} The transaction object or null if not found
    */
-  findById(transactionId) {
+  findById(transactionId: number): Transaction | null {
     const stmt = db.getConnection().prepare('SELECT * FROM transactions WHERE id = ?');
-    return stmt.get(transactionId);
+    return stmt.get(transactionId) as Transaction | null;
   }
   
   /**
    * Get all transactions for a specific user
    * 
    * @param {string} userId - Discord user ID
-   * @param {number} [limit=50] - Maximum number of transactions to return
-   * @returns {Array} Array of transactions
+   * @param {number} limit - Maximum number of transactions to return
+   * @returns {Transaction[]} Array of transactions
    */
-  findByUserId(userId, limit = 50) {
+  findByUserId(userId: string, limit: number = 50): Transaction[] {
     const stmt = db.getConnection().prepare(`
       SELECT *
       FROM transactions
@@ -56,17 +58,17 @@ class TransactionRepository {
       LIMIT ?
     `);
     
-    return stmt.all(userId, limit);
+    return stmt.all(userId, limit) as Transaction[];
   }
   
   /**
    * Get all transactions of a specific type
    * 
-   * @param {string} type - Transaction type
-   * @param {number} [limit=50] - Maximum number of transactions to return
-   * @returns {Array} Array of transactions
+   * @param {TransactionType} type - Transaction type
+   * @param {number} limit - Maximum number of transactions to return
+   * @returns {Transaction[]} Array of transactions
    */
-  findByType(type, limit = 50) {
+  findByType(type: TransactionType, limit: number = 50): Transaction[] {
     const stmt = db.getConnection().prepare(`
       SELECT t.*, u.name as user_name
       FROM transactions t
@@ -76,16 +78,16 @@ class TransactionRepository {
       LIMIT ?
     `);
     
-    return stmt.all(type, limit);
+    return stmt.all(type, limit) as Transaction[];
   }
   
   /**
    * Get transactions related to a specific reference (e.g., a bet or match)
    * 
    * @param {number} referenceId - Reference ID
-   * @returns {Array} Array of transactions
+   * @returns {Transaction[]} Array of transactions
    */
-  findByReferenceId(referenceId) {
+  findByReferenceId(referenceId: number): Transaction[] {
     const stmt = db.getConnection().prepare(`
       SELECT t.*, u.name as user_name
       FROM transactions t
@@ -94,52 +96,38 @@ class TransactionRepository {
       ORDER BY t.created_at DESC
     `);
     
-    return stmt.all(referenceId);
+    return stmt.all(referenceId) as Transaction[];
   }
-  
+
   /**
-   * Get a user's transaction history
+   * Get a user's transaction history with enriched information
    * 
    * @param {string} userId - Discord user ID
-   * @param {number} [limit=10] - Maximum number of transactions to return
-   * @returns {Array} Array of user's transactions with details
+   * @param {number} limit - Maximum number of transactions to fetch
+   * @returns {Transaction[]} User's transaction history
    */
-  getUserHistory(userId, limit = 10) {
+  getUserHistory(userId: string, limit: number = 10): Transaction[] {
     const stmt = db.getConnection().prepare(`
       SELECT 
         t.*,
-        CASE
-          WHEN t.type = 'bet' OR t.type = 'payout' OR t.type = 'refund' THEN (
-            SELECT m.team1 || ' vs ' || m.team2 ||
-                  CASE 
-                    WHEN b.result = 'win' THEN ' (Won)'
-                    WHEN b.result = 'loss' THEN ' (Lost)'
-                    WHEN b.result = 'refund' THEN ' (Refunded)'
-                    ELSE ''
-                  END
+        CASE 
+          WHEN t.type = 'bet' OR t.type = 'payout' OR t.type = 'refund' 
+          THEN (
+            SELECT m.team1 || ' vs ' || m.team2
             FROM bets b
             JOIN matches m ON b.match_id = m.id
             WHERE b.id = t.reference_id
             LIMIT 1
           )
           ELSE NULL
-        END as match_info,
-        CASE
-          WHEN t.reference_id IS NOT NULL THEN (
-            SELECT b.result
-            FROM bets b
-            WHERE b.id = t.reference_id
-            LIMIT 1
-          )
-          ELSE NULL
-        END as bet_result
+        END as match_info
       FROM transactions t
       WHERE t.user_id = ?
       ORDER BY t.created_at DESC
       LIMIT ?
     `);
     
-    return stmt.all(userId, limit);
+    return stmt.all(userId, limit) as Transaction[];
   }
   
   /**
@@ -147,9 +135,9 @@ class TransactionRepository {
    * 
    * @param {string} userId - Discord user ID
    * @param {number} amount - Initial balance amount
-   * @returns {Object} The created transaction
+   * @returns {Transaction} The created transaction
    */
-  createInitialTransaction(userId, amount) {
+  createInitialTransaction(userId: string, amount: number): Transaction {
     return this.create({
       userId,
       amount,
@@ -163,9 +151,9 @@ class TransactionRepository {
    * @param {string} userId - Discord user ID
    * @param {number} amount - Bet amount (negative since it's a deduction)
    * @param {number} betId - Bet ID for reference
-   * @returns {Object} The created transaction
+   * @returns {Transaction} The created transaction
    */
-  createBetTransaction(userId, amount, betId) {
+  createBetTransaction(userId: string, amount: number, betId: number): Transaction {
     return this.create({
       userId,
       amount: -Math.abs(amount), // Ensure it's negative (money is deducted)
@@ -180,9 +168,9 @@ class TransactionRepository {
    * @param {string} userId - Discord user ID
    * @param {number} amount - Payout amount (positive value)
    * @param {number} betId - Bet ID for reference
-   * @returns {Object} The created transaction
+   * @returns {Transaction} The created transaction
    */
-  createPayoutTransaction(userId, amount, betId) {
+  createPayoutTransaction(userId: string, amount: number, betId: number): Transaction {
     return this.create({
       userId,
       amount: Math.abs(amount), // Ensure it's positive
@@ -197,9 +185,9 @@ class TransactionRepository {
    * @param {string} userId - Discord user ID
    * @param {number} amount - Refund amount (positive value)
    * @param {number} betId - Bet ID for reference
-   * @returns {Object} The created transaction
+   * @returns {Transaction} The created transaction
    */
-  createRefundTransaction(userId, amount, betId) {
+  createRefundTransaction(userId: string, amount: number, betId: number): Transaction {
     return this.create({
       userId,
       amount: Math.abs(amount), // Ensure it's positive
@@ -209,4 +197,5 @@ class TransactionRepository {
   }
 }
 
-module.exports = new TransactionRepository(); 
+// Export singleton instance
+export default new TransactionRepository(); 

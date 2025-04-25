@@ -1,4 +1,5 @@
-const db = require('../Database');
+import db from '../Database.js';
+import { Bet, BetResult } from '../../types/index.js';
 
 /**
  * Repository for handling Bet-related database operations
@@ -7,41 +8,42 @@ class BetRepository {
   /**
    * Create a new bet
    * 
-   * @param {Object} bet - Bet data
-   * @param {string} bet.userId - Discord user ID
-   * @param {number} bet.matchId - Match ID
-   * @param {string} bet.team - Team name
-   * @param {number} bet.amount - Bet amount
-   * @returns {Object} The created bet
+   * @param {Partial<Bet>} bet - Bet data
+   * @returns {Bet} The created bet
    */
-  create(bet) {
+  create(bet: {
+    userId: string;
+    matchId: number;
+    team: string;
+    amount: number;
+  }): Bet {
     const stmt = db.getConnection().prepare(`
       INSERT INTO bets (user_id, match_id, team, amount)
       VALUES (?, ?, ?, ?)
       RETURNING *
     `);
     
-    return stmt.get(bet.userId, bet.matchId, bet.team, bet.amount);
+    return stmt.get(bet.userId, bet.matchId, bet.team, bet.amount) as Bet;
   }
   
   /**
    * Get a bet by ID
    * 
    * @param {number} betId - Bet ID
-   * @returns {Object|null} The bet object or null if not found
+   * @returns {Bet|null} The bet object or null if not found
    */
-  findById(betId) {
+  findById(betId: number): Bet | null {
     const stmt = db.getConnection().prepare('SELECT * FROM bets WHERE id = ?');
-    return stmt.get(betId);
+    return stmt.get(betId) as Bet | null;
   }
   
   /**
    * Get all bets for a specific match
    * 
    * @param {number} matchId - Match ID
-   * @returns {Array} Array of bets for the match
+   * @returns {Bet[]} Array of bets for the match
    */
-  findByMatchId(matchId) {
+  findByMatchId(matchId: number): Bet[] {
     const stmt = db.getConnection().prepare(`
       SELECT b.*, u.name as user_name
       FROM bets b
@@ -49,16 +51,16 @@ class BetRepository {
       WHERE b.match_id = ?
     `);
     
-    return stmt.all(matchId);
+    return stmt.all(matchId) as Bet[];
   }
   
   /**
    * Get all bets placed by a specific user
    * 
    * @param {string} userId - Discord user ID
-   * @returns {Array} Array of bets placed by the user
+   * @returns {Bet[]} Array of bets placed by the user
    */
-  findByUserId(userId) {
+  findByUserId(userId: string): Bet[] {
     const stmt = db.getConnection().prepare(`
       SELECT b.*, m.team1, m.team2, m.status, m.winner
       FROM bets b
@@ -67,20 +69,19 @@ class BetRepository {
       ORDER BY b.created_at DESC
     `);
     
-    return stmt.all(userId);
+    return stmt.all(userId) as Bet[];
   }
   
   /**
-   * Check if a user has already placed a bet on a match
+   * Check if a user has already bet on a match
    * 
    * @param {string} userId - Discord user ID
    * @param {number} matchId - Match ID
    * @returns {boolean} True if the user has already bet on the match
    */
-  userHasBet(userId, matchId) {
+  userHasBet(userId: string, matchId: number): boolean {
     const stmt = db.getConnection().prepare(`
-      SELECT 1
-      FROM bets
+      SELECT 1 FROM bets
       WHERE user_id = ? AND match_id = ?
       LIMIT 1
     `);
@@ -93,9 +94,9 @@ class BetRepository {
    * 
    * @param {number} matchId - Match ID
    * @param {string} team - Team name
-   * @returns {Array} Array of bets for the team
+   * @returns {Bet[]} Array of bets for the team
    */
-  findByMatchAndTeam(matchId, team) {
+  findByMatchAndTeam(matchId: number, team: string): Bet[] {
     const stmt = db.getConnection().prepare(`
       SELECT b.*, u.name as user_name
       FROM bets b
@@ -103,7 +104,7 @@ class BetRepository {
       WHERE b.match_id = ? AND b.team = ?
     `);
     
-    return stmt.all(matchId, team);
+    return stmt.all(matchId, team) as Bet[];
   }
   
   /**
@@ -112,7 +113,7 @@ class BetRepository {
    * @param {number} matchId - Match ID
    * @returns {boolean} True if bets were deleted
    */
-  deleteByMatchId(matchId) {
+  deleteByMatchId(matchId: number): boolean {
     const stmt = db.getConnection().prepare('DELETE FROM bets WHERE match_id = ?');
     const result = stmt.run(matchId);
     return result.changes > 0;
@@ -125,14 +126,14 @@ class BetRepository {
    * @param {string} team - Team name
    * @returns {number} Total amount bet on the team
    */
-  getTotalBetOnTeam(matchId, team) {
+  getTotalBetOnTeam(matchId: number, team: string): number {
     const stmt = db.getConnection().prepare(`
       SELECT SUM(amount) as total
       FROM bets
       WHERE match_id = ? AND team = ?
     `);
     
-    const result = stmt.get(matchId, team);
+    const result = stmt.get(matchId, team) as { total: number } | { total: null };
     return result.total || 0;
   }
   
@@ -140,11 +141,11 @@ class BetRepository {
    * Update bet result
    * 
    * @param {number} betId - Bet ID
-   * @param {string} result - Bet result ('win', 'loss', 'refund', 'pending')
-   * @returns {Object|null} Updated bet or null if bet doesn't exist
+   * @param {BetResult} result - Bet result ('win', 'loss', 'refund', 'pending')
+   * @returns {Bet|null} Updated bet or null if bet doesn't exist
    */
-  updateResult(betId, result) {
-    const validResults = ['win', 'loss', 'refund', 'pending'];
+  updateResult(betId: number, result: BetResult): Bet | null {
+    const validResults: BetResult[] = ['win', 'loss', 'refund', 'pending'];
     if (!validResults.includes(result)) {
       throw new Error(`Invalid bet result: ${result}. Must be one of: ${validResults.join(', ')}`);
     }
@@ -156,17 +157,34 @@ class BetRepository {
       RETURNING *
     `);
     
-    return stmt.get(result, betId);
+    return stmt.get(result, betId) as Bet | null;
   }
   
   /**
-   * Update all bet results for a match
+   * Mark all bets for a match as refunded
    * 
    * @param {number} matchId - Match ID
-   * @param {string} winningTeam - Name of the winning team
    * @returns {number} Number of bets updated
    */
-  updateMatchResults(matchId, winningTeam) {
+  markAsRefunded(matchId: number): number {
+    const stmt = db.getConnection().prepare(`
+      UPDATE bets
+      SET result = 'refund'
+      WHERE match_id = ?
+    `);
+    
+    const result = stmt.run(matchId);
+    return result.changes;
+  }
+  
+  /**
+   * Update all bet results for a match based on the winner
+   * 
+   * @param {number} matchId - Match ID
+   * @param {string} winningTeam - Winning team name
+   * @returns {number} Number of bets updated
+   */
+  updateMatchResults(matchId: number, winningTeam: string): number {
     // Mark winning bets
     const winStmt = db.getConnection().prepare(`
       UPDATE bets
@@ -188,30 +206,13 @@ class BetRepository {
   }
   
   /**
-   * Mark all bets for a match as refunded
-   * 
-   * @param {number} matchId - Match ID
-   * @returns {number} Number of bets updated
-   */
-  markAsRefunded(matchId) {
-    const stmt = db.getConnection().prepare(`
-      UPDATE bets
-      SET result = 'refund'
-      WHERE match_id = ?
-    `);
-    
-    const result = stmt.run(matchId);
-    return result.changes;
-  }
-
-  /**
    * Get winning bets for a match
    * 
    * @param {number} matchId - Match ID
    * @param {string} winningTeam - Winning team name
-   * @returns {Array} Array of winning bets
+   * @returns {Bet[]} Array of winning bets
    */
-  getWinningBets(matchId, winningTeam) {
+  getWinningBets(matchId: number, winningTeam: string): Bet[] {
     const stmt = db.getConnection().prepare(`
       SELECT b.*, u.name as user_name
       FROM bets b
@@ -219,7 +220,7 @@ class BetRepository {
       WHERE b.match_id = ? AND b.team = ?
     `);
     
-    return stmt.all(matchId, winningTeam);
+    return stmt.all(matchId, winningTeam) as Bet[];
   }
   
   /**
@@ -227,9 +228,9 @@ class BetRepository {
    * 
    * @param {number} matchId - Match ID
    * @param {string} winningTeam - Winning team name
-   * @returns {Array} Array of losing bets
+   * @returns {Bet[]} Array of losing bets
    */
-  getLosingBets(matchId, winningTeam) {
+  getLosingBets(matchId: number, winningTeam: string): Bet[] {
     const stmt = db.getConnection().prepare(`
       SELECT b.*, u.name as user_name
       FROM bets b
@@ -237,8 +238,9 @@ class BetRepository {
       WHERE b.match_id = ? AND b.team != ?
     `);
     
-    return stmt.all(matchId, winningTeam);
+    return stmt.all(matchId, winningTeam) as Bet[];
   }
 }
 
-module.exports = new BetRepository(); 
+// Export singleton instance
+export default new BetRepository(); 

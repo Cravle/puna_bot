@@ -2,13 +2,15 @@
   "name": "discord-betting-bot",
   "version": "1.0.0",
   "description": "A Discord bot for managing bets on team matches with SQLite storage",
-  "main": "index.js",
+  "type": "module",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "migrate": "node src/migrations/migrateJsonToSqlite.js",
-    "update-users": "node src/scripts/updateUserNames.js",
-    "sync-users": "node src/scripts/syncAllUsers.js"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "nodemon --exec ts-node --esm index.ts",
+    "migrate": "ts-node --esm src/migrations/migrateJsonToSqlite.ts",
+    "update-users": "ts-node --esm src/scripts/updateUserNames.ts",
+    "sync-users": "ts-node --esm src/scripts/syncAllUsers.ts"
   },
   "dependencies": {
     "better-sqlite3": "^8.4.0",
@@ -17,7 +19,11 @@
     "sqlite3": "^5.1.6"
   },
   "devDependencies": {
-    "nodemon": "^2.0.22"
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.2",
+    "nodemon": "^2.0.22",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   },
   "engines": {
     "node": ">=16.9.0"

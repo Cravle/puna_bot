@@ -1,15 +1,19 @@
-const matchRepository = require('./database/repositories/MatchRepository');
-const betRepository = require('./database/repositories/BetRepository');
-const transactionRepository = require('./database/repositories/TransactionRepository');
+import matchRepository from './database/repositories/MatchRepository.js';
+import betRepository from './database/repositories/BetRepository.js';
+import transactionRepository from './database/repositories/TransactionRepository.js';
+import { BalanceManager } from './BalanceManager.js';
+import { Match, Bet, OperationResult } from './types/index.js';
 
 /**
  * Manages betting matches and bet placements
  */
-class MatchManager {
+export class MatchManager {
+  private balanceManager: BalanceManager;
+
   /**
-   * @param {import('./BalanceManager')} balanceManager - Balance manager instance
+   * @param {BalanceManager} balanceManager - Balance manager instance
    */
-  constructor(balanceManager) {
+  constructor(balanceManager: BalanceManager) {
     this.balanceManager = balanceManager;
   }
 
@@ -17,13 +21,13 @@ class MatchManager {
    * Get the current match data
    * @returns {Object} Current match data with bets
    */
-  getCurrentMatch() {
+  getCurrentMatch(): Match {
     const match = matchRepository.getActiveMatch();
     
     // If no active match, return the latest match regardless of status
     if (!match) {
       const latestMatch = matchRepository.getLatestMatch();
-      return latestMatch || { status: 'none' };
+      return latestMatch || { id: 0, status: 'none', team1: '', team2: '' };
     }
     
     // Add bets to match data
@@ -37,7 +41,7 @@ class MatchManager {
    * @param {string} team2 - Second team name
    * @returns {Object} Created match data
    */
-  createMatch(team1, team2) {
+  createMatch(team1: string, team2: string): Match {
     const match = matchRepository.create({
       team1,
       team2,
@@ -55,7 +59,7 @@ class MatchManager {
    * @param {number} amount - Bet amount
    * @returns {Object} Result with success status and message
    */
-  placeBet(userId, username, team, amount) {
+  placeBet(userId: string, username: string, team: string, amount: number): OperationResult {
     const match = matchRepository.getActiveMatch();
     
     // Validate match status
@@ -116,7 +120,7 @@ class MatchManager {
    * Cancel the current match and refund bets
    * @returns {Object} Result with success status and message
    */
-  cancelMatch() {
+  cancelMatch(): OperationResult {
     const match = matchRepository.getActiveMatch();
     
     // Validate match
@@ -156,7 +160,7 @@ class MatchManager {
    * @param {string} winner - Name of the winning team
    * @returns {Object} Result with success status and message
    */
-  finishMatch(winner) {
+  finishMatch(winner: string): OperationResult {
     const match = matchRepository.getActiveMatch();
     
     // Validate match
@@ -203,7 +207,7 @@ class MatchManager {
    * @param {number} limit - Maximum number of matches to return
    * @returns {Array} Match history
    */
-  getMatchHistory(limit = 5) {
+  getMatchHistory(limit: number = 5): Match[] {
     return matchRepository.getHistory(limit);
   }
   
@@ -212,7 +216,7 @@ class MatchManager {
    * @param {number} matchId - Match ID
    * @returns {Array} Bets for the match
    */
-  getMatchBets(matchId) {
+  getMatchBets(matchId: number): Bet[] {
     return betRepository.findByMatchId(matchId);
   }
   
@@ -221,9 +225,7 @@ class MatchManager {
    * @param {string} userId - Discord user ID
    * @returns {Array} User's betting history
    */
-  getUserBets(userId) {
+  getUserBets(userId: string): Bet[] {
     return betRepository.findByUserId(userId);
   }
-}
-
-module.exports = MatchManager; 
+} 

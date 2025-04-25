@@ -1,13 +1,19 @@
-const { Client, GatewayIntentBits } = require('discord.js');
-require('dotenv').config();
+import { Client, GatewayIntentBits } from 'discord.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const BalanceManager = require('./BalanceManager');
-const MatchManager = require('./MatchManager');
+import { BalanceManager } from './BalanceManager.js';
+import { MatchManager } from './MatchManager.js';
+import { Match, DiscordMessage } from './types/index.js';
 
 /**
  * Main Discord bot class that handles commands and integrates managers
  */
-class BetBot {
+export class BetBot {
+  private client: Client;
+  private balanceManager: BalanceManager;
+  private matchManager: MatchManager;
+
   constructor() {
     this.client = new Client({ 
       intents: [
@@ -28,9 +34,9 @@ class BetBot {
   /**
    * Set up Discord.js event handlers
    */
-  setupEventHandlers() {
+  private setupEventHandlers(): void {
     this.client.on('ready', () => {
-      console.log(`Logged in as ${this.client.user.tag}`);
+      console.log(`Logged in as ${this.client.user?.tag}`);
     });
 
     this.client.on('messageCreate', this.handleMessage.bind(this));
@@ -38,9 +44,9 @@ class BetBot {
 
   /**
    * Handle incoming Discord messages
-   * @param {Message} msg - Discord.js message object
+   * @param {DiscordMessage} msg - Discord.js message object
    */
-  async handleMessage(msg) {
+  private async handleMessage(msg: any): Promise<void> {
     if (!msg.content.startsWith('!')) return;
     
     const [command, ...args] = msg.content.slice(1).split(/\s+/);
@@ -74,19 +80,19 @@ class BetBot {
 
   /**
    * Handle !balance command
-   * @param {Message} msg - Discord.js message object
+   * @param {DiscordMessage} msg - Discord.js message object
    * @param {string} userId - Discord user ID
    */
-  handleBalanceCommand(msg, userId) {
+  private handleBalanceCommand(msg: any, userId: string): void {
     const balance = this.balanceManager.getBalance(userId);
     msg.reply(`Your balance: $${balance} punaBacs`);
   }
 
   /**
    * Handle !init command (admin only)
-   * @param {Message} msg - Discord.js message object
+   * @param {DiscordMessage} msg - Discord.js message object
    */
-  async handleInitCommand(msg) {
+  private async handleInitCommand(msg: any): Promise<void> {
     if (!msg.member.permissions.has('Administrator')) {
       return msg.reply('Только администратор может использовать эту команду.');
     }
@@ -103,12 +109,12 @@ class BetBot {
 
   /**
    * Handle !match commands
-   * @param {Message} msg - Discord.js message object
-   * @param {Array} args - Command arguments
+   * @param {DiscordMessage} msg - Discord.js message object
+   * @param {Array<string>} args - Command arguments
    * @param {string} userId - Discord user ID
    * @param {string} username - Discord username
    */
-  handleMatchCommand(msg, args, userId, username) {
+  private handleMatchCommand(msg: any, args: string[], userId: string, username: string): void {
     const subCommand = args[0];
     
     switch(subCommand) {
@@ -168,12 +174,13 @@ class BetBot {
           return;
         }
         
-        const team1Bets = matchInfo.filter(b => b.team === matchInfo[0].team1);
-        const team2Bets = matchInfo.filter(b => b.team === matchInfo[0].team2);
+        const matchData = matchInfo[0] as any;
+        const team1Bets = matchInfo.filter(b => b.team === matchData.team1);
+        const team2Bets = matchInfo.filter(b => b.team === matchData.team2);
         
         const infoMsg = `**Match #${matchId} Bets:**\n` +
-          `${team1Bets.length} bets on ${matchInfo[0].team1}: $${team1Bets.reduce((sum, b) => sum + b.amount, 0)}\n` +
-          `${team2Bets.length} bets on ${matchInfo[0].team2}: $${team2Bets.reduce((sum, b) => sum + b.amount, 0)}`;
+          `${team1Bets.length} bets on ${matchData.team1}: $${team1Bets.reduce((sum, b) => sum + b.amount, 0)}\n` +
+          `${team2Bets.length} bets on ${matchData.team2}: $${team2Bets.reduce((sum, b) => sum + b.amount, 0)}`;
           
         msg.channel.send(infoMsg);
         break;
@@ -197,12 +204,12 @@ class BetBot {
 
   /**
    * Handle !bet command
-   * @param {Message} msg - Discord.js message object
-   * @param {Array} args - Command arguments
+   * @param {DiscordMessage} msg - Discord.js message object
+   * @param {Array<string>} args - Command arguments
    * @param {string} userId - Discord user ID
    * @param {string} username - Discord username
    */
-  handleBetCommand(msg, args, userId, username) {
+  private handleBetCommand(msg: any, args: string[], userId: string, username: string): void {
     const [team, amountStr] = args;
     const amount = parseInt(amountStr);
     
@@ -212,9 +219,9 @@ class BetBot {
 
   /**
    * Handle !leaderboard command
-   * @param {Message} msg - Discord.js message object
+   * @param {DiscordMessage} msg - Discord.js message object
    */
-  handleLeaderboardCommand(msg) {
+  private handleLeaderboardCommand(msg: any): void {
     const leaderboardData = this.balanceManager.getLeaderboard();
     
     if (leaderboardData.length === 0) {
@@ -231,11 +238,11 @@ class BetBot {
   
   /**
    * Handle !history command
-   * @param {Message} msg - Discord.js message object
-   * @param {Array} args - Command arguments
+   * @param {DiscordMessage} msg - Discord.js message object
+   * @param {Array<string>} args - Command arguments
    * @param {string} userId - Discord user ID
    */
-  handleHistoryCommand(msg, args, userId) {
+  private handleHistoryCommand(msg: any, args: string[], userId: string): void {
     const subCommand = args[0] || 'bets';
     
     switch(subCommand) {
@@ -247,7 +254,7 @@ class BetBot {
           return;
         }
         
-        const betsHistory = userBets.map(bet => {
+        const betsHistory = userBets.map((bet: any) => {
           let resultIcon = '⏳ Pending';
           
           if (bet.result === 'win') {
@@ -277,8 +284,8 @@ class BetBot {
           return;
         }
         
-        const txHistory = transactions.map(tx => {
-          const typeMap = {
+        const txHistory = transactions.map((tx: any) => {
+          const typeMap: Record<string, string> = {
             'init': '🏦 Initial balance',
             'bet': '🎲 Bet placed',
             'payout': '💰 Payout received',
@@ -299,9 +306,9 @@ class BetBot {
   
   /**
    * Handle !help command
-   * @param {Message} msg - Discord.js message object
+   * @param {DiscordMessage} msg - Discord.js message object
    */
-  handleHelpCommand(msg) {
+  private handleHelpCommand(msg: any): void {
     const helpText = `
 **Betting Bot Commands:**
 \`!balance\` - Check your current balance
@@ -324,9 +331,11 @@ class BetBot {
   /**
    * Start the Discord bot
    */
-  start() {
-    this.client.login(process.env.DISCORD_TOKEN);
+  start(): void {
+    const token = process.env.DISCORD_TOKEN;
+    if (!token) {
+      throw new Error('DISCORD_TOKEN not found in environment variables');
+    }
+    this.client.login(token);
   }
-}
-
-module.exports = BetBot; 
+} 

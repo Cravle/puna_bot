@@ -1,6 +1,6 @@
 // Main entry point for the Discord Betting Bot
-const BetBot = require('./src/BetBot');
+import { BetBot } from './src/BetBot.js';
 
 // Initialize and start the bot
 const bot = new BetBot();
-bot.start();
+bot.start(); 
