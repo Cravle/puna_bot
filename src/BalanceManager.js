@@ -1,12 +1,11 @@
+const userRepository = require('./database/repositories/UserRepository');
+const transactionRepository = require('./database/repositories/TransactionRepository');
+
 /**
  * Manages user balances and economy features
  */
 class BalanceManager {
-  /**
-   * @param {import('./DataManager')} dataManager - Data manager instance
-   */
-  constructor(dataManager) {
-    this.dataManager = dataManager;
+  constructor() {
     this.START_BALANCE = 1000;
   }
 
@@ -16,43 +15,65 @@ class BalanceManager {
    * @returns {number} User's current balance
    */
   getBalance(userId) {
-    const balances = this.dataManager.loadJson(this.dataManager.balancePath);
-    return balances[userId] ?? this.START_BALANCE;
+    return userRepository.getBalance(userId);
   }
 
   /**
    * Set a user's balance to a specific amount
    * @param {string} userId - Discord user ID
+   * @param {string} username - Discord username
    * @param {number} amount - New balance amount
+   * @returns {Object} Updated user
    */
-  setBalance(userId, amount) {
-    const balances = this.dataManager.loadJson(this.dataManager.balancePath);
-    balances[userId] = amount;
-    this.dataManager.saveJson(this.dataManager.balancePath, balances);
+  setBalance(userId, username, amount) {
+    // Create user if doesn't exist
+    if (!userRepository.exists(userId)) {
+      userRepository.createOrUpdate({ id: userId, name: username, balance: amount });
+      // Record transaction for audit
+      transactionRepository.createInitialTransaction(userId, amount);
+      return { id: userId, balance: amount };
+    }
+    
+    // Update existing user
+    return userRepository.updateBalance(userId, amount);
   }
 
   /**
    * Adjust a user's balance by adding or subtracting an amount
    * @param {string} userId - Discord user ID
+   * @param {string} username - Discord username
    * @param {number} amount - Amount to adjust (positive or negative)
+   * @param {string} type - Transaction type
+   * @param {number} referenceId - Reference ID (optional)
    * @returns {number} New balance after adjustment
    */
-  adjustBalance(userId, amount) {
-    const currentBalance = this.getBalance(userId);
-    this.setBalance(userId, currentBalance + amount);
-    return currentBalance + amount;
+  adjustBalance(userId, username, amount, type = 'donate', referenceId = null) {
+    // Ensure user exists
+    if (!userRepository.exists(userId)) {
+      userRepository.createOrUpdate({ id: userId, name: username, balance: this.START_BALANCE });
+      transactionRepository.createInitialTransaction(userId, this.START_BALANCE);
+    }
+    
+    // Record transaction
+    transactionRepository.create({
+      userId,
+      amount,
+      type,
+      referenceId
+    });
+    
+    // Update balance and return updated user
+    const updatedUser = userRepository.adjustBalance(userId, amount);
+    return updatedUser.balance;
   }
 
   /**
    * Get sorted leaderboard of balances
    * @param {number} limit - Maximum number of entries to return
-   * @returns {Array} Array of [userId, balance] pairs
+   * @returns {Array} Array of user objects with balance info
    */
   getLeaderboard(limit = 5) {
-    const balances = this.dataManager.loadJson(this.dataManager.balancePath);
-    return Object.entries(balances)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, limit);
+    return userRepository.getLeaderboard(limit);
   }
 
   /**
@@ -61,18 +82,36 @@ class BalanceManager {
    * @returns {number} Number of members who received initial balance
    */
   initializeAllMembers(members) {
-    const balances = this.dataManager.loadJson(this.dataManager.balancePath);
     let added = 0;
     
+    // Process each member
     members.forEach(member => {
-      if (!member.user.bot && balances[member.id] === undefined) {
-        balances[member.id] = this.START_BALANCE;
+      if (!member.user.bot && !userRepository.exists(member.id)) {
+        // Create user
+        userRepository.createOrUpdate({
+          id: member.id,
+          name: member.user.username,
+          balance: this.START_BALANCE
+        });
+        
+        // Record initial transaction
+        transactionRepository.createInitialTransaction(member.id, this.START_BALANCE);
+        
         added++;
       }
     });
     
-    this.dataManager.saveJson(this.dataManager.balancePath, balances);
     return added;
+  }
+  
+  /**
+   * Get a user's transaction history
+   * @param {string} userId - Discord user ID 
+   * @param {number} limit - Maximum number of transactions to fetch
+   * @returns {Array} User's transaction history
+   */
+  getTransactionHistory(userId, limit = 10) {
+    return transactionRepository.getUserHistory(userId, limit);
   }
 }
 

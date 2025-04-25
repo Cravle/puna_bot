@@ -1,15 +1,20 @@
 {
   "name": "discord-betting-bot",
   "version": "1.0.0",
-  "description": "A Discord bot for managing bets on team matches",
+  "description": "A Discord bot for managing bets on team matches with SQLite storage",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "migrate": "node src/migrations/migrateJsonToSqlite.js",
+    "update-users": "node src/scripts/updateUserNames.js",
+    "sync-users": "node src/scripts/syncAllUsers.js"
   },
   "dependencies": {
+    "better-sqlite3": "^8.4.0",
     "discord.js": "^14.11.0",
-    "dotenv": "^16.0.3"
+    "dotenv": "^16.0.3",
+    "sqlite3": "^5.1.6"
   },
   "devDependencies": {
     "nodemon": "^2.0.22"
