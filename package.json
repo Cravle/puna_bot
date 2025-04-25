@@ -7,10 +7,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "nodemon --exec ts-node --esm index.ts",
-    "migrate": "ts-node --esm src/migrations/migrateJsonToSqlite.ts",
-    "update-users": "ts-node --esm src/scripts/updateUserNames.ts",
-    "sync-users": "ts-node --esm src/scripts/syncAllUsers.ts"
+    "dev": "tsc && nodemon --watch 'src/**' --ext 'ts' --exec 'tsc && node dist/index.js'",
+    "migrate": "tsc && node dist/src/migrations/migrateJsonToSqlite.js",
+    "update-users": "tsc && node dist/src/scripts/updateUserNames.js",
+    "sync-users": "tsc && node dist/src/scripts/syncAllUsers.js"
   },
   "dependencies": {
     "better-sqlite3": "^8.4.0",
