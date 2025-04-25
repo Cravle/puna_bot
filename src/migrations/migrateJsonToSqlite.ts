@@ -38,7 +38,7 @@ function migrateBalances(): number {
     userRepository.createOrUpdate({
       id: userId,
       name: 'Unknown User', // We don't have usernames in the JSON data
-      balance: balance as number
+      balance: balance as number,
     });
     
     // Create initial transaction for the balance
@@ -88,7 +88,7 @@ function migrateMatch(): number {
   const match = matchRepository.create({
     team1: matchData.team1,
     team2: matchData.team2,
-    status: matchData.status as 'pending' | 'done' | 'canceled' | 'none' || 'none'
+    status: matchData.status as 'pending' | 'done' | 'canceled' | 'none' || 'none',
   });
   
   // Set winner if match is done

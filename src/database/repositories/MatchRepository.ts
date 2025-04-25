@@ -21,7 +21,7 @@ class MatchRepository {
     return stmt.get(
       match.team1, 
       match.team2, 
-      match.status || 'pending'
+      match.status || 'pending',
     ) as Match;
   }
   
@@ -121,7 +121,7 @@ class MatchRepository {
    * @param {number} limit - Maximum number of matches to return
    * @returns {Match[]} Array of matches sorted by creation date
    */
-  getHistory(limit: number = 10): Match[] {
+  getHistory(limit = 10): Match[] {
     const stmt = db.getConnection().prepare(`
       SELECT * 
       FROM matches 

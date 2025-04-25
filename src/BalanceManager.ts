@@ -55,7 +55,7 @@ export class BalanceManager {
     username: string, 
     amount: number, 
     type: 'init' | 'bet' | 'payout' | 'refund' | 'donate' = 'donate', 
-    referenceId?: number
+    referenceId?: number,
   ): number {
     // Ensure user exists
     if (!userRepository.exists(userId)) {
@@ -68,7 +68,7 @@ export class BalanceManager {
       userId,
       amount,
       type,
-      referenceId
+      referenceId,
     });
     
     // Update balance and return updated user
@@ -81,7 +81,7 @@ export class BalanceManager {
    * @param {number} limit - Maximum number of entries to return
    * @returns {Array} Array of user objects with balance info
    */
-  getLeaderboard(limit: number = 5): User[] {
+  getLeaderboard(limit = 5): User[] {
     return userRepository.getLeaderboard(limit);
   }
 
@@ -100,7 +100,7 @@ export class BalanceManager {
         userRepository.createOrUpdate({
           id: member.id,
           name: member.user.username,
-          balance: this.START_BALANCE
+          balance: this.START_BALANCE,
         });
         
         // Record initial transaction
@@ -119,7 +119,7 @@ export class BalanceManager {
    * @param {number} limit - Maximum number of transactions to fetch
    * @returns {Array} User's transaction history
    */
-  getTransactionHistory(userId: string, limit: number = 10): any[] {
+  getTransactionHistory(userId: string, limit = 10): any[] {
     return transactionRepository.getUserHistory(userId, limit);
   }
 } 

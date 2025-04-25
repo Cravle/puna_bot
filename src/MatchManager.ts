@@ -45,7 +45,7 @@ export class MatchManager {
     const match = matchRepository.create({
       team1,
       team2,
-      status: 'pending'
+      status: 'pending',
     });
     
     return match;
@@ -93,7 +93,7 @@ export class MatchManager {
       userId,
       matchId: match.id,
       team,
-      amount
+      amount,
     });
     
     // Deduct balance (this is just the initial deduction, outcome will be recorded when match ends)
@@ -102,7 +102,7 @@ export class MatchManager {
       username, 
       -amount,  // Always deduct the bet amount initially
       'bet', 
-      bet.id
+      bet.id,
     );
     
     // Record the initial bet transaction (neutral, outcome will be determined later)
@@ -110,7 +110,7 @@ export class MatchManager {
       userId,
       amount: -amount, // Initial deduction
       type: 'bet',
-      referenceId: bet.id
+      referenceId: bet.id,
     });
     
     return { success: true, message: `Bet of $${amount} on ${team} accepted.` };
@@ -142,7 +142,7 @@ export class MatchManager {
         bet.user_name || 'Unknown User', 
         bet.amount, 
         'refund', 
-        bet.id
+        bet.id,
       );
       
       // Record the refund transaction
@@ -189,7 +189,7 @@ export class MatchManager {
         bet.user_name || 'Unknown User',
         payout,
         'payout',
-        bet.id
+        bet.id,
       );
       
       // Record the payout transaction
@@ -207,7 +207,7 @@ export class MatchManager {
    * @param {number} limit - Maximum number of matches to return
    * @returns {Array} Match history
    */
-  getMatchHistory(limit: number = 5): Match[] {
+  getMatchHistory(limit = 5): Match[] {
     return matchRepository.getHistory(limit);
   }
   

@@ -14,8 +14,8 @@ async function updateUserNames(): Promise<void> {
   const client = new Client({ 
     intents: [
       GatewayIntentBits.Guilds, 
-      GatewayIntentBits.GuildMembers
-    ] 
+      GatewayIntentBits.GuildMembers,
+    ], 
   });
   
   try {
@@ -58,7 +58,7 @@ async function updateUserNames(): Promise<void> {
             userRepository.createOrUpdate({
               id: memberId,
               name: displayName,
-              balance: 0 // This field is required but will be ignored in the update
+              balance: 0, // This field is required but will be ignored in the update
             });
             updatedUsers++;
             

@@ -27,7 +27,7 @@ class TransactionRepository {
       transaction.userId,
       transaction.amount,
       transaction.type,
-      transaction.referenceId || null
+      transaction.referenceId || null,
     ) as Transaction;
   }
   
@@ -49,7 +49,7 @@ class TransactionRepository {
    * @param {number} limit - Maximum number of transactions to return
    * @returns {Transaction[]} Array of transactions
    */
-  findByUserId(userId: string, limit: number = 50): Transaction[] {
+  findByUserId(userId: string, limit = 50): Transaction[] {
     const stmt = db.getConnection().prepare(`
       SELECT *
       FROM transactions
@@ -68,7 +68,7 @@ class TransactionRepository {
    * @param {number} limit - Maximum number of transactions to return
    * @returns {Transaction[]} Array of transactions
    */
-  findByType(type: TransactionType, limit: number = 50): Transaction[] {
+  findByType(type: TransactionType, limit = 50): Transaction[] {
     const stmt = db.getConnection().prepare(`
       SELECT t.*, u.name as user_name
       FROM transactions t
@@ -106,7 +106,7 @@ class TransactionRepository {
    * @param {number} limit - Maximum number of transactions to fetch
    * @returns {Transaction[]} User's transaction history
    */
-  getUserHistory(userId: string, limit: number = 10): Transaction[] {
+  getUserHistory(userId: string, limit = 10): Transaction[] {
     const stmt = db.getConnection().prepare(`
       SELECT 
         t.*,
@@ -141,7 +141,7 @@ class TransactionRepository {
     return this.create({
       userId,
       amount,
-      type: 'init'
+      type: 'init',
     });
   }
   
@@ -158,7 +158,7 @@ class TransactionRepository {
       userId,
       amount: -Math.abs(amount), // Ensure it's negative (money is deducted)
       type: 'bet',
-      referenceId: betId
+      referenceId: betId,
     });
   }
   
@@ -175,7 +175,7 @@ class TransactionRepository {
       userId,
       amount: Math.abs(amount), // Ensure it's positive
       type: 'payout',
-      referenceId: betId
+      referenceId: betId,
     });
   }
   
@@ -192,7 +192,7 @@ class TransactionRepository {
       userId,
       amount: Math.abs(amount), // Ensure it's positive
       type: 'refund',
-      referenceId: betId
+      referenceId: betId,
     });
   }
 }

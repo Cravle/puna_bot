@@ -5,12 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc",
     "start": "node dist/index.js",
-    "dev": "tsc && nodemon --watch 'src/**' --ext 'ts' --exec 'tsc && node dist/index.js'",
-    "migrate": "tsc && node dist/src/migrations/migrateJsonToSqlite.js",
-    "update-users": "tsc && node dist/src/scripts/updateUserNames.js",
-    "sync-users": "tsc && node dist/src/scripts/syncAllUsers.js"
+    "dev": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && nodemon --watch 'src/**' --ext 'ts' --exec 'tsc && node dist/index.js'",
+    "migrate": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/migrations/migrateJsonToSqlite.js",
+    "update-users": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/updateUserNames.js",
+    "sync-users": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/syncAllUsers.js",
+    "lint": "eslint 'src/**/*.ts' 'index.ts' --fix"
   },
   "dependencies": {
     "better-sqlite3": "^8.4.0",
@@ -21,6 +22,9 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.2",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "eslint": "^8.57.1",
     "nodemon": "^2.0.22",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"

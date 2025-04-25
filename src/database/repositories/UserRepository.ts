@@ -104,7 +104,7 @@ class UserRepository {
    * @param {number} limit - Maximum number of users to return
    * @returns {User[]} Array of users sorted by balance
    */
-  getLeaderboard(limit: number = 5): User[] {
+  getLeaderboard(limit = 5): User[] {
     const stmt = db.getConnection().prepare(`
       SELECT id, name, balance
       FROM users

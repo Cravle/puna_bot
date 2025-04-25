@@ -78,7 +78,7 @@ export class Logger {
    */
   static bet(userId: string, username: string, matchId: number, team: string, amount: number): void {
     console.log(
-      `[${this.getTimestamp()}] 🎲 \x1b[33m[Bet]\x1b[0m ${username} (${userId}) bet ${amount} PunaCoins on ${team} in match #${matchId}`
+      `[${this.getTimestamp()}] 🎲 \x1b[33m[Bet]\x1b[0m ${username} (${userId}) bet ${amount} PunaCoins on ${team} in match #${matchId}`,
     );
   }
 
@@ -97,10 +97,10 @@ export class Logger {
     team2: string, 
     winner: string, 
     totalBets: number, 
-    totalAmount: number
+    totalAmount: number,
   ): void {
     console.log(
-      `[${this.getTimestamp()}] 🏆 \x1b[32m[Match Result]\x1b[0m Match #${matchId} ${team1} vs ${team2} - Winner: ${winner} (${totalBets} bets, ${totalAmount} PunaCoins total)`
+      `[${this.getTimestamp()}] 🏆 \x1b[32m[Match Result]\x1b[0m Match #${matchId} ${team1} vs ${team2} - Winner: ${winner} (${totalBets} bets, ${totalAmount} PunaCoins total)`,
     );
   }
 } 

@@ -16,8 +16,8 @@ async function syncAllUsers(): Promise<void> {
   const client = new Client({ 
     intents: [
       GatewayIntentBits.Guilds, 
-      GatewayIntentBits.GuildMembers
-    ] 
+      GatewayIntentBits.GuildMembers,
+    ], 
   });
   
   const START_BALANCE = 1000;
@@ -63,7 +63,7 @@ async function syncAllUsers(): Promise<void> {
             userRepository.createOrUpdate({
               id: memberId,
               name: displayName,
-              balance: 0 // This field is required but will be ignored in the update
+              balance: 0, // This field is required but will be ignored in the update
             });
             updatedUsers++;
           } else {
@@ -74,7 +74,7 @@ async function syncAllUsers(): Promise<void> {
             userRepository.createOrUpdate({
               id: memberId,
               name: displayName,
-              balance: START_BALANCE
+              balance: START_BALANCE,
             });
             
             // Create initial transaction
