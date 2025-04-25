@@ -1,11 +1,26 @@
-import { Client, GatewayIntentBits } from 'discord.js';
+import {
+  Client,
+  GatewayIntentBits,
+  SlashCommandBuilder,
+  Collection,
+  ChatInputCommandInteraction,
+  REST,
+  Routes,
+  EmbedBuilder,
+  ApplicationCommandOptionType,
+} from 'discord.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
 import { BalanceManager } from './BalanceManager.js';
 import { MatchManager } from './MatchManager.js';
-import { Match, DiscordMessage, Bet, OperationResult } from './types/index.js';
+import { EventManager } from './EventManager.js';
+import { Match, DiscordMessage, Bet, OperationResult, EventBet } from './types/index.js';
 import { Logger } from './utils/Logger.js';
+import matchRepository from './database/repositories/MatchRepository.js';
+import eventRepository from './database/repositories/EventRepository.js';
+import userRepository from './database/repositories/UserRepository.js';
+import betRepository from './database/repositories/BetRepository.js';
 
 /**
  * Main Discord bot class that handles commands and integrates managers
@@ -14,6 +29,8 @@ export class BetBot {
   private client: Client;
   private balanceManager: BalanceManager;
   private matchManager: MatchManager;
+  private eventManager: EventManager;
+  private commands: Collection<string, any>;
 
   constructor() {
     this.client = new Client({
@@ -28,8 +45,12 @@ export class BetBot {
     // Initialize managers
     this.balanceManager = new BalanceManager();
     this.matchManager = new MatchManager(this.balanceManager);
+    this.eventManager = new EventManager(this.balanceManager);
+    this.commands = new Collection();
 
     this.setupEventHandlers();
+    this.setupAutocompletesHandler();
+    this.registerCommands();
   }
 
   /**
@@ -40,518 +61,1609 @@ export class BetBot {
       Logger.success('Bot', `Logged in as ${this.client.user?.tag}`);
     });
 
-    this.client.on('messageCreate', this.handleMessage.bind(this));
-  }
+    // Handle slash command interactions
+    this.client.on('interactionCreate', async interaction => {
+      if (!interaction.isChatInputCommand()) return;
 
-  /**
-   * Handle incoming Discord messages
-   * @param {DiscordMessage} msg - Discord.js message object
-   */
-  private async handleMessage(msg: any): Promise<void> {
-    if (!msg.content.startsWith('!')) return;
+      const command = this.commands.get(interaction.commandName);
+      if (!command) return;
 
-    const [command, ...args] = msg.content.slice(1).split(/\s+/);
-    const userId = msg.author.id;
-    const username = msg.author.username;
+      try {
+        await command(interaction);
+      } catch (error) {
+        Logger.error('Command', `Error executing ${interaction.commandName}`, error);
 
-    // Log the command
-    Logger.command(userId, username, msg.content);
+        const reply = {
+          content: '❌ There was an error executing this command!',
+          ephemeral: true,
+        };
 
-    switch (command) {
-    case 'balance':
-      this.handleBalanceCommand(msg, userId);
-      break;
-    case 'init':
-      this.handleInitCommand(msg);
-      break;
-    case 'match':
-      this.handleMatchCommand(msg, args, userId, username);
-      break;
-    case 'bet':
-      this.handleBetCommand(msg, args, userId, username);
-      break;
-    case 'leaderboard':
-      this.handleLeaderboardCommand(msg);
-      break;
-    case 'history':
-      this.handleHistoryCommand(msg, args, userId);
-      break;
-    case 'matches':
-      this.handleMatchesHistoryCommand(msg);
-      break;
-    case 'help':
-      this.handleHelpCommand(msg);
-      break;
-    }
-  }
-
-  /**
-   * Handle !balance command
-   * @param {DiscordMessage} msg - Discord.js message object
-   * @param {string} userId - Discord user ID
-   */
-  private handleBalanceCommand(msg: any, userId: string): void {
-    const balance = this.balanceManager.getBalance(userId);
-    msg.reply(`💰 **Your Balance**: ${balance} PunaCoins`);
-  }
-
-  /**
-   * Handle !init command (admin only)
-   * @param {DiscordMessage} msg - Discord.js message object
-   */
-  private async handleInitCommand(msg: any): Promise<void> {
-    if (!msg.member.permissions.has('Administrator')) {
-      return msg.reply('🚫 **Access Denied**: Only administrators can use this command.');
-    }
-
-    try {
-      const members = await msg.guild.members.fetch();
-      const added = this.balanceManager.initializeAllMembers(members);
-      msg.channel.send(`✅ **Success**: Balance initialized for ${added} members.`);
-    } catch (err) {
-      console.error(err);
-      msg.reply('❌ **Error**: Failed to fetch members.');
-    }
-  }
-
-  /**
-   * Handle !match commands
-   * @param {DiscordMessage} msg - Discord.js message object
-   * @param {Array<string>} args - Command arguments
-   * @param {string} userId - Discord user ID
-   * @param {string} username - Discord username
-   */
-  private handleMatchCommand(msg: any, args: string[], userId: string, username: string): void {
-    const subCommand = args[0];
-
-    switch (subCommand) {
-    case 'create':
-      const [team1, team2] = [args[1], args[2]];
-      if (!team1 || !team2) {
-        msg.reply('⚠️ **Usage**: `!match create Team1 Team2`');
-        return;
-      }
-
-      const currentMatch = this.matchManager.getCurrentMatch();
-      if (currentMatch && currentMatch.status === 'pending') {
-        msg.reply('⚠️ **Error**: A match is already active!');
-        return;
-      }
-
-      const match = this.matchManager.createMatch(team1, team2);
-      msg.channel.send(`🎮 **Match #${match.id} Created**\n${team1} 🆚 ${team2}`);
-      break;
-
-    case 'cancel':
-      const cancelResult = this.matchManager.cancelMatch();
-      msg.channel.send(`🚫 ${cancelResult.message}`);
-      break;
-
-    case 'result':
-      const winner = args[1];
-      const resultResponse = this.matchManager.finishMatch(winner);
-
-      if (resultResponse.success) {
-        // Get the match data after it has been updated
-        const matchData = this.matchManager.getCurrentMatch();
-        if (matchData && matchData.winner === winner) {
-          const bets = this.matchManager.getMatchBets(matchData.id);
-          const totalBets = bets.length;
-          const totalAmount = bets.reduce((sum: number, bet: Bet) => sum + bet.amount, 0);
-          Logger.matchResult(
-            matchData.id,
-            matchData.team1,
-            matchData.team2,
-            winner,
-            totalBets,
-            totalAmount,
-          );
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(reply);
+        } else {
+          await interaction.reply(reply);
         }
-      } else {
-        Logger.warn('Match', `Failed to set match result: ${resultResponse.message}`);
+      }
+    });
+
+    // Handle autocomplete interactions
+    this.client.on('interactionCreate', async interaction => {
+      if (!interaction.isAutocomplete()) return;
+
+      if (
+        interaction.commandName === 'bet' &&
+        interaction.options.getFocused(true).name === 'team'
+      ) {
+        const activeMatch = this.matchManager.getCurrentMatch();
+        if (!activeMatch) {
+          await interaction.respond([]);
+          return;
+        }
+
+        const options = [
+          { name: activeMatch.team1, value: activeMatch.team1 },
+          { name: activeMatch.team2, value: activeMatch.team2 },
+        ];
+
+        await interaction.respond(options);
       }
 
-      msg.channel.send(`🏆 ${resultResponse.message}`);
-      break;
+      // Handle autocomplete for match winner
+      if (
+        interaction.commandName === 'match' &&
+        interaction.options.getSubcommand() === 'result' &&
+        interaction.options.getFocused(true).name === 'winner'
+      ) {
+        const activeMatch = this.matchManager.getCurrentMatch();
+        if (!activeMatch) {
+          await interaction.respond([]);
+          return;
+        }
 
-    case 'list':
-      const history = this.matchManager.getMatchHistory(5);
-      if (history.length === 0) {
-        msg.channel.send('📜 **Match History**: No matches found.');
-        return;
+        const options = [
+          { name: activeMatch.team1, value: activeMatch.team1 },
+          { name: activeMatch.team2, value: activeMatch.team2 },
+        ];
+
+        await interaction.respond(options);
       }
+    });
 
-      const historyMsg = history
-        .map(m => {
-          const status =
-              m.status === 'pending'
-                ? '🟢 Active'
-                : m.status === 'done'
-                  ? `🏆 Winner: ${m.winner}`
-                  : '❌ Canceled';
-          return `#${m.id} **${m.team1}** 🆚 **${m.team2}** - ${status}`;
-        })
-        .join('\n');
+    // Keep message handler for backward compatibility but deprecate it
+    this.client.on('messageCreate', async (msg: any) => {
+      if (!msg.content.startsWith('!')) return;
 
-      msg.channel.send(`📜 **Match History:**\n${historyMsg}`);
-      break;
-
-    case 'info':
-      const matchId = parseInt(args[1]);
-      if (isNaN(matchId)) {
-        msg.reply('⚠️ **Usage**: `!match info <match_id>`');
-        return;
-      }
-
-      const matchInfo = this.matchManager.getMatchBets(matchId);
-      if (matchInfo.length === 0) {
-        msg.reply('❌ **Error**: No bets found for this match or invalid match ID.');
-        return;
-      }
-
-      const matchData = matchInfo[0] as any;
-      const team1Bets = matchInfo.filter(b => b.team === matchData.team1);
-      const team2Bets = matchInfo.filter(b => b.team === matchData.team2);
-
-      const infoMsg =
-          `📊 **Match #${matchId} Bets:**\n` +
-          `**${matchData.team1}**: ${team1Bets.length} bets, ${team1Bets.reduce(
-            (sum, b) => sum + b.amount,
-            0,
-          )} PunaCoins\n` +
-          `**${matchData.team2}**: ${team2Bets.length} bets, ${team2Bets.reduce(
-            (sum, b) => sum + b.amount,
-            0,
-          )} PunaCoins`;
-
-      msg.channel.send(infoMsg);
-      break;
-
-    default:
-      // If no subcommand or invalid, show the current match
-      const activeMatch = this.matchManager.getCurrentMatch();
-      if (!activeMatch || activeMatch.status !== 'pending') {
-        msg.channel.send('❌ **No Active Match**: Create one with `!match create Team1 Team2`');
-        return;
-      }
-
-      const team1Count = activeMatch.bets?.filter(b => b.team === activeMatch.team1).length || 0;
-      const team2Count = activeMatch.bets?.filter(b => b.team === activeMatch.team2).length || 0;
-
-      msg.channel.send(
-        `🎮 **Active Match #${activeMatch.id}:**\n` +
-            `**${activeMatch.team1}** (${team1Count} bets) 🆚 **${activeMatch.team2}** (${team2Count} bets)\n` +
-            `💰 Place your bet with: \`!bet ${activeMatch.team1} <amount>\` or \`!bet ${activeMatch.team2} <amount>\``,
+      // Send a deprecation notice
+      msg.reply(
+        '⚠️ Message commands are deprecated. Please use slash commands instead (type / to see available commands).',
       );
-    }
+    });
   }
 
   /**
-   * Handle !bet command
-   * @param {DiscordMessage} msg - Discord.js message object
-   * @param {Array<string>} args - Command arguments
-   * @param {string} userId - Discord user ID
-   * @param {string} username - Discord username
+   * Register slash commands with Discord
    */
-  private handleBetCommand(msg: any, args: string[], userId: string, username: string): void {
-    const [team, amountStr] = args;
-    const amount = parseInt(amountStr);
+  private async registerCommands(): Promise<void> {
+    try {
+      const commands = [
+        {
+          name: 'balance',
+          description: 'Check your PunaCoin balance',
+          options: [
+            {
+              name: 'user',
+              type: ApplicationCommandOptionType.User,
+              description: 'User to check balance for (admin only)',
+              required: false,
+            },
+          ],
+        },
+        {
+          name: 'leaderboard',
+          description: 'Show PunaCoin leaderboard',
+          options: [
+            {
+              name: 'limit',
+              type: ApplicationCommandOptionType.Integer,
+              description: 'Number of users to show (default: 10)',
+              required: false,
+              min_value: 1,
+              max_value: 25,
+            },
+          ],
+        },
+        {
+          name: 'match',
+          description: 'Match management commands',
+          options: [
+            {
+              name: 'create',
+              type: ApplicationCommandOptionType.Subcommand,
+              description: 'Create a new match',
+              options: [
+                {
+                  name: 'type',
+                  type: ApplicationCommandOptionType.String,
+                  description: 'Type of match to create',
+                  required: true,
+                  choices: [
+                    {
+                      name: 'User vs User (1v1)',
+                      value: '1v1',
+                    },
+                    {
+                      name: 'Team vs Team',
+                      value: 'team',
+                    },
+                  ],
+                },
+                {
+                  name: 'participant1',
+                  type: ApplicationCommandOptionType.User,
+                  description: 'First participant (for 1v1 match)',
+                  required: false,
+                },
+                {
+                  name: 'participant2',
+                  type: ApplicationCommandOptionType.User,
+                  description: 'Second participant (for 1v1 match)',
+                  required: false,
+                },
+                {
+                  name: 'team1',
+                  type: ApplicationCommandOptionType.String,
+                  description: 'First team name (for team match)',
+                  required: false,
+                },
+                {
+                  name: 'team2',
+                  type: ApplicationCommandOptionType.String,
+                  description: 'Second team name (for team match)',
+                  required: false,
+                },
+              ],
+            },
+            {
+              name: 'start',
+              type: ApplicationCommandOptionType.Subcommand,
+              description: 'Start a match immediately (admin only)',
+              options: [
+                {
+                  name: 'match_id',
+                  type: ApplicationCommandOptionType.Integer,
+                  description: 'ID of the match to start',
+                  required: true,
+                  autocomplete: true,
+                },
+              ],
+            },
+            {
+              name: 'cancel',
+              type: ApplicationCommandOptionType.Subcommand,
+              description: 'Cancel a match (admin only)',
+              options: [
+                {
+                  name: 'match_id',
+                  type: ApplicationCommandOptionType.Integer,
+                  description: 'ID of the match to cancel',
+                  required: true,
+                  autocomplete: true,
+                },
+              ],
+            },
+            {
+              name: 'result',
+              type: ApplicationCommandOptionType.Subcommand,
+              description: 'Set the result of a match (admin only)',
+              options: [
+                {
+                  name: 'match_id',
+                  type: ApplicationCommandOptionType.Integer,
+                  description: 'ID of the match to set result for',
+                  required: true,
+                  autocomplete: true,
+                },
+                {
+                  name: 'winner',
+                  type: ApplicationCommandOptionType.User,
+                  description: 'The winner of the match (for 1v1)',
+                  required: false,
+                },
+                {
+                  name: 'team',
+                  type: ApplicationCommandOptionType.String,
+                  description: 'The winning team name (for team match)',
+                  required: false,
+                  autocomplete: true,
+                },
+              ],
+            },
+          ],
+        },
+        {
+          name: 'event',
+          description: 'Event management commands',
+          options: [
+            {
+              name: 'create',
+              type: ApplicationCommandOptionType.Subcommand,
+              description: 'Create a new event with Yes/No outcome',
+              options: [
+                {
+                  name: 'name',
+                  type: ApplicationCommandOptionType.String,
+                  description: 'Name of the event',
+                  required: true,
+                },
+                {
+                  name: 'participant',
+                  type: ApplicationCommandOptionType.User,
+                  description: 'Associated participant (optional)',
+                  required: false,
+                },
+                {
+                  name: 'description',
+                  type: ApplicationCommandOptionType.String,
+                  description: 'Additional description of the event',
+                  required: false,
+                },
+              ],
+            },
+            {
+              name: 'start',
+              type: ApplicationCommandOptionType.Subcommand,
+              description: 'Start an event immediately (admin only)',
+              options: [
+                {
+                  name: 'event_id',
+                  type: ApplicationCommandOptionType.Integer,
+                  description: 'ID of the event to start',
+                  required: true,
+                  autocomplete: true,
+                },
+              ],
+            },
+            {
+              name: 'cancel',
+              type: ApplicationCommandOptionType.Subcommand,
+              description: 'Cancel an event (admin only)',
+              options: [
+                {
+                  name: 'event_id',
+                  type: ApplicationCommandOptionType.Integer,
+                  description: 'ID of the event to cancel',
+                  required: true,
+                  autocomplete: true,
+                },
+              ],
+            },
+            {
+              name: 'result',
+              type: ApplicationCommandOptionType.Subcommand,
+              description: 'Set the result of an event (admin only)',
+              options: [
+                {
+                  name: 'event_id',
+                  type: ApplicationCommandOptionType.Integer,
+                  description: 'ID of the event to set result for',
+                  required: true,
+                  autocomplete: true,
+                },
+                {
+                  name: 'outcome',
+                  type: ApplicationCommandOptionType.Boolean,
+                  description: 'Outcome of the event (Yes/No)',
+                  required: true,
+                },
+              ],
+            },
+          ],
+        },
+        {
+          name: 'bet',
+          description: 'Place a bet on a match or event',
+          options: [
+            {
+              name: 'id',
+              type: ApplicationCommandOptionType.Integer,
+              description: 'ID of the match or event to bet on',
+              required: true,
+              autocomplete: true,
+            },
+            {
+              name: 'option',
+              type: ApplicationCommandOptionType.String,
+              description: 'Participant/team/outcome to bet on',
+              required: true,
+              autocomplete: true,
+            },
+            {
+              name: 'amount',
+              type: ApplicationCommandOptionType.Integer,
+              description: 'Amount to bet',
+              required: true,
+              min_value: 10,
+            },
+          ],
+        },
+        {
+          name: 'history',
+          description: 'View your betting history',
+          options: [
+            {
+              name: 'limit',
+              type: ApplicationCommandOptionType.Integer,
+              description: 'Number of entries to show (default: 5)',
+              required: false,
+              min_value: 1,
+              max_value: 25,
+            },
+          ],
+        },
+        {
+          name: 'matches',
+          description: 'View match history or active matches',
+          options: [
+            {
+              name: 'filter',
+              type: ApplicationCommandOptionType.String,
+              description: 'Filter to apply',
+              required: false,
+              choices: [
+                {
+                  name: 'All matches',
+                  value: 'all',
+                },
+                {
+                  name: 'Active matches only',
+                  value: 'active',
+                },
+                {
+                  name: 'Completed matches only',
+                  value: 'completed',
+                },
+                {
+                  name: '1v1 matches only',
+                  value: '1v1',
+                },
+                {
+                  name: 'Team matches only',
+                  value: 'team',
+                },
+              ],
+            },
+            {
+              name: 'limit',
+              type: ApplicationCommandOptionType.Integer,
+              description: 'Number of matches to show (default: 5)',
+              required: false,
+              min_value: 1,
+              max_value: 25,
+            },
+          ],
+        },
+        {
+          name: 'events',
+          description: 'View event history or active events',
+          options: [
+            {
+              name: 'filter',
+              type: ApplicationCommandOptionType.String,
+              description: 'Filter to apply',
+              required: false,
+              choices: [
+                {
+                  name: 'All events',
+                  value: 'all',
+                },
+                {
+                  name: 'Active events only',
+                  value: 'active',
+                },
+                {
+                  name: 'Completed events only',
+                  value: 'completed',
+                },
+              ],
+            },
+            {
+              name: 'limit',
+              type: ApplicationCommandOptionType.Integer,
+              description: 'Number of events to show (default: 5)',
+              required: false,
+              min_value: 1,
+              max_value: 25,
+            },
+          ],
+        },
+        {
+          name: 'help',
+          description: 'Show help information',
+        },
+        {
+          name: 'init',
+          description: 'Initialize a user in the system with starting balance (admin only)',
+          options: [
+            {
+              name: 'user',
+              type: ApplicationCommandOptionType.User,
+              description: 'User to initialize',
+              required: true,
+            },
+            {
+              name: 'balance',
+              type: ApplicationCommandOptionType.Integer,
+              description: 'Starting balance (default: 1000)',
+              required: false,
+              min_value: 0,
+            },
+          ],
+        },
+      ];
 
-    const betResult = this.matchManager.placeBet(userId, username, team, amount);
-
-    if (betResult.success) {
-      const match = this.matchManager.getCurrentMatch();
-      if (match) {
-        Logger.bet(userId, username, match.id, team, amount);
-      }
-    } else {
-      Logger.warn('Bet', `Failed bet from ${username} (${userId}): ${betResult.message}`);
-    }
-
-    msg.reply(`🎲 ${betResult.message}`);
-  }
-
-  /**
-   * Handle !leaderboard command
-   * @param {DiscordMessage} msg - Discord.js message object
-   */
-  private handleLeaderboardCommand(msg: any): void {
-    const leaderboardData = this.balanceManager.getLeaderboard();
-
-    if (leaderboardData.length === 0) {
-      msg.channel.send('📊 **Leaderboard**: No users found yet.');
-      return;
-    }
-
-    const leaderboard = leaderboardData
-      .map((user, i) => {
-        let medal = '';
-        if (i === 0) medal = '🥇 ';
-        else if (i === 1) medal = '🥈 ';
-        else if (i === 2) medal = '🥉 ';
-        else medal = `${i + 1}. `;
-
-        return `${medal}<@${user.id}> — ${user.balance} PunaCoins`;
-      })
-      .join('\n');
-
-    msg.channel.send(`🏆 **Leaderboard:**\n${leaderboard}`);
-  }
-
-  /**
-   * Handle !history command
-   * @param {DiscordMessage} msg - Discord.js message object
-   * @param {Array<string>} args - Command arguments
-   * @param {string} userId - Discord user ID
-   */
-  private handleHistoryCommand(msg: any, args: string[], userId: string): void {
-    const subCommand = args[0] || 'bets';
-
-    switch (subCommand) {
-    case 'bets':
-      const userBets = this.matchManager.getUserBets(userId);
-
-      if (userBets.length === 0) {
-        msg.reply('📜 **Bet History**: You have not placed any bets yet.');
+      // Update commands for bot/guild
+      const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+      const CLIENT_ID = process.env.CLIENT_ID;
+      if (!DISCORD_TOKEN || !CLIENT_ID) {
+        Logger.error('Bot', 'Missing DISCORD_TOKEN or CLIENT_ID environment variables');
         return;
       }
 
-      const betsHistory = userBets
-        .map((bet: any) => {
-          let resultIcon = '⏳ Pending';
+      const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
 
-          if (bet.result === 'win') {
-            resultIcon = '💰 Won';
-          } else if (bet.result === 'loss') {
-            resultIcon = '❌ Lost';
-          } else if (bet.result === 'refund') {
-            resultIcon = '↩️ Refunded';
-          } else if (bet.status === 'done') {
-            // Fallback for old bets without result field
-            resultIcon = bet.winner === bet.team ? '💰 Won' : '❌ Lost';
-          } else if (bet.status === 'canceled') {
-            resultIcon = '🚫 Canceled';
+      Logger.info('Bot', `Started refreshing ${commands.length} application (/) commands.`);
+
+      // Register commands globally
+      await rest.put(Routes.applicationCommands(CLIENT_ID), {
+        body: commands,
+      });
+
+      // Set up the commands in the client collection
+      this.commands = new Collection();
+      this.commands.set('balance', this.handleBalanceCommand.bind(this));
+      this.commands.set('init', this.handleInitCommand.bind(this));
+      this.commands.set('match', this.handleMatchCommand.bind(this));
+      this.commands.set('event', this.handleEventCommand.bind(this));
+      this.commands.set('bet', this.handleBetCommand.bind(this));
+      this.commands.set('leaderboard', this.handleLeaderboardCommand.bind(this));
+      this.commands.set('history', this.handleHistoryCommand.bind(this));
+      this.commands.set('matches', this.handleMatchesHistoryCommand.bind(this));
+      this.commands.set('events', this.handleEventsHistoryCommand.bind(this));
+      this.commands.set('help', this.handleHelpCommand.bind(this));
+
+      Logger.success('Bot', 'Successfully registered application commands.');
+    } catch (error) {
+      Logger.error('Bot', `Error refreshing application commands: ${error}`);
+    }
+  }
+
+  /**
+   * Handle autocomplete interactions for various commands
+   */
+  private setupAutocompletesHandler(): void {
+    this.client.on('interactionCreate', async interaction => {
+      if (!interaction.isAutocomplete()) return;
+
+      // Handle match option autocomplete
+      if (
+        interaction.commandName === 'bet' &&
+        interaction.options.getFocused(true).name === 'option'
+      ) {
+        const id = interaction.options.getInteger('id');
+        if (!id) {
+          await interaction.respond([]);
+          return;
+        }
+
+        // Check if this is a match or an event
+        const match = this.matchManager.getMatch(id);
+        if (match) {
+          // It's a match, offer team choices
+          let options = [];
+
+          if (match.match_type === '1v1') {
+            // For 1v1 matches, show the player usernames but pass their IDs as values
+            options = [
+              { name: match.team1, value: match.player1_id || match.team1 },
+              { name: match.team2, value: match.player2_id || match.team2 },
+            ];
+          } else {
+            // For team matches, show the team names
+            options = [
+              { name: match.team1, value: match.team1 },
+              { name: match.team2, value: match.team2 },
+            ];
           }
 
-          return `**${bet.team1}** 🆚 **${bet.team2}** - Bet: ${bet.amount} PunaCoins on **${bet.team}** - ${resultIcon}`;
-        })
-        .slice(0, 5)
-        .join('\n');
-
-      msg.reply(`📜 **Your Recent Bets:**\n${betsHistory}`);
-      break;
-
-    case 'transactions':
-      const transactions = this.balanceManager.getTransactionHistory(userId);
-
-      if (transactions.length === 0) {
-        msg.reply('📜 **Transaction History**: No transactions found.');
-        return;
+          await interaction.respond(options);
+        } else {
+          // Check if it's an event
+          const event = this.eventManager.getEventInfo(id);
+          if (event) {
+            // It's an event, offer Yes/No choices
+            const options = [
+              { name: 'Yes', value: 'Yes' },
+              { name: 'No', value: 'No' },
+            ];
+            await interaction.respond(options);
+          } else {
+            await interaction.respond([]);
+          }
+        }
       }
 
-      const txHistory = transactions
-        .map((tx: any) => {
-          const typeMap: Record<string, string> = {
-            init: '🏦 Initial balance',
-            bet: '🎲 Bet placed',
-            payout: '💰 Payout received',
-            refund: '♻️ Bet refunded',
-            donate: '🎁 Gift',
-          };
+      // Handle match ID autocomplete
+      if (interaction.commandName === 'bet' && interaction.options.getFocused(true).name === 'id') {
+        // Combine active matches and events
+        const matches = this.getPendingMatches();
+        const events = this.getPendingEvents();
 
-          const sign = tx.amount >= 0 ? '+' : '';
-          const matchInfo = tx.match_info ? ` (${tx.match_info})` : '';
+        const options = [
+          ...matches.map((m: any) => ({
+            name: `Match #${m.id}: ${m.team1} vs ${m.team2}`,
+            value: m.id,
+          })),
+          ...events.map((e: any) => ({
+            name: `Event #${e.id}: ${e.title}`,
+            value: e.id,
+          })),
+        ];
 
-          return `${typeMap[tx.type] || tx.type}${matchInfo}: **${sign}${Math.abs(
-            tx.amount,
-          )} PunaCoins**`;
-        })
-        .join('\n');
+        await interaction.respond(options);
+      }
 
-      msg.reply(`📜 **Your Recent Transactions:**\n${txHistory}`);
-      break;
+      // Handle match result autocomplete for team choice
+      if (
+        interaction.commandName === 'match' &&
+        interaction.options.getSubcommand() === 'result' &&
+        interaction.options.getFocused(true).name === 'team'
+      ) {
+        const matchId = interaction.options.getInteger('match_id');
+        if (!matchId) {
+          await interaction.respond([]);
+          return;
+        }
+
+        const match = this.matchManager.getMatch(matchId);
+        if (!match) {
+          await interaction.respond([]);
+          return;
+        }
+
+        const options = [
+          { name: match.team1, value: match.team1 },
+          { name: match.team2, value: match.team2 },
+        ];
+
+        await interaction.respond(options);
+      }
+
+      // Autocomplete for match IDs in various match commands
+      if (
+        interaction.commandName === 'match' &&
+        ['start', 'cancel', 'result'].includes(interaction.options.getSubcommand()) &&
+        interaction.options.getFocused(true).name === 'match_id'
+      ) {
+        const matches = this.getPendingMatches();
+        const options = matches.map((m: any) => ({
+          name: `Match #${m.id}: ${m.team1} vs ${m.team2}`,
+          value: m.id,
+        }));
+
+        await interaction.respond(options);
+      }
+
+      // Autocomplete for event IDs in various event commands
+      if (
+        interaction.commandName === 'event' &&
+        ['start', 'cancel', 'result'].includes(interaction.options.getSubcommand()) &&
+        interaction.options.getFocused(true).name === 'event_id'
+      ) {
+        const events = this.getPendingEvents();
+        const options = events.map((e: any) => ({
+          name: `Event #${e.id}: ${e.title}`,
+          value: e.id,
+        }));
+
+        await interaction.respond(options);
+      }
+    });
+  }
+
+  /**
+   * Get active/pending matches for autocomplete
+   */
+  private getPendingMatches(): any[] {
+    // Get matches that are in 'pending' status
+    return this.matchManager.getMatchHistory(10).filter(m => m.status === 'pending');
+  }
+
+  /**
+   * Get active/pending events for autocomplete
+   */
+  private getPendingEvents(): any[] {
+    // Get events that are in 'pending' status
+    return this.eventManager.getEventHistory(10).filter(e => e.status === 'pending');
+  }
+
+  /**
+   * Handle /balance command
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
+   */
+  private async handleBalanceCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+    const targetUser = interaction.options.getUser('user');
+
+    if (targetUser) {
+      // User wants to check someone else's balance
+      const targetBalance = this.balanceManager.getBalance(targetUser.id);
+      await interaction.reply(
+        `💰 **${targetUser.username}'s Balance**: ${targetBalance} PunaCoins`,
+      );
+      Logger.command(userId, username, `/balance user:${targetUser.username}`);
+    } else {
+      // User wants to check their own balance
+      const balance = this.balanceManager.getBalance(userId);
+      await interaction.reply(`💰 **Your Balance**: ${balance} PunaCoins`);
+      Logger.command(userId, username, '/balance');
     }
   }
 
   /**
-   * Handle !matches command to show detailed match history
-   * @param {DiscordMessage} msg - Discord.js message object
+   * Handle /init command (admin only)
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
    */
-  private handleMatchesHistoryCommand(msg: any): void {
-    const args = msg.content.split(/\s+/).slice(1);
-    const firstArg = args[0]?.toLowerCase();
-
-    // Determine view mode and bet limit
-    let viewMode = 'finished'; // Default to showing only finished matches
-    let betLimit = 999; // Default to showing all bets
-
-    if (firstArg === 'all') {
-      viewMode = 'all';
-      betLimit = parseInt(args[1]) || 999;
-    } else if (firstArg === 'finished') {
-      viewMode = 'finished';
-      betLimit = parseInt(args[1]) || 999;
-    } else if (firstArg === 'pending') {
-      viewMode = 'pending';
-      betLimit = parseInt(args[1]) || 999;
-    } else if (!isNaN(parseInt(firstArg))) {
-      // If the first argument is a number, it's the bet limit
-      betLimit = parseInt(firstArg);
-    }
-
-    // Get matches from repository
-    const allMatches = this.matchManager.getMatchHistory(10);
-
-    // Filter matches based on view mode
-    let matches = allMatches;
-    if (viewMode === 'finished') {
-      matches = allMatches.filter(m => m.status === 'done');
-    } else if (viewMode === 'pending') {
-      matches = allMatches.filter(m => m.status === 'pending');
-    }
-
-    if (matches.length === 0) {
-      msg.channel.send(`📜 **Match History**: No ${viewMode} matches found.`);
+  private async handleInitCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    // Check admin permissions
+    if (!interaction.memberPermissions?.has('Administrator')) {
+      await interaction.reply({
+        content: '🚫 **Access Denied**: Only administrators can use this command.',
+        ephemeral: true,
+      });
       return;
     }
 
-    const matchPromises = matches.map(async match => {
-      const bets = this.matchManager.getMatchBets(match.id);
+    // Defer reply as this might take time
+    await interaction.deferReply();
 
-      const team1Bets = bets.filter(b => b.team === match.team1);
-      const team2Bets = bets.filter(b => b.team === match.team2);
+    try {
+      const members = await interaction.guild?.members.fetch();
+      if (!members) {
+        await interaction.editReply('❌ **Error**: Failed to fetch members.');
+        return;
+      }
 
-      const team1Total = team1Bets.reduce((sum: number, b: Bet) => sum + b.amount, 0);
-      const team2Total = team2Bets.reduce((sum: number, b: Bet) => sum + b.amount, 0);
+      const added = this.balanceManager.initializeAllMembers(members);
+      await interaction.editReply(`✅ **Success**: Balance initialized for ${added} members.`);
 
-      let statusEmoji, statusText;
-      if (match.status === 'pending') {
-        statusEmoji = '🟢';
-        statusText = 'Active';
-      } else if (match.status === 'done') {
-        statusEmoji = '🏆';
-        statusText = `Winner: **${match.winner}**`;
+      Logger.command(interaction.user.id, interaction.user.username, '/init');
+    } catch (err) {
+      console.error(err);
+      await interaction.editReply('❌ **Error**: Failed to fetch members.');
+    }
+  }
+
+  /**
+   * Handle /match commands for all match types (1v1, team, event)
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
+   */
+  private async handleMatchCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+    const subCommand = interaction.options.getSubcommand();
+
+    // Log the command
+    Logger.command(userId, username, `/match ${subCommand}`);
+
+    switch (subCommand) {
+    case 'create': {
+      // Check if user has admin permission for creating matches
+      if (!interaction.memberPermissions?.has('Administrator')) {
+        await interaction.reply({
+          content: '🚫 **Access Denied**: Only administrators can create matches.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const matchType = interaction.options.getString('type', true);
+
+      if (matchType === '1v1') {
+        // Handle 1v1 match creation
+        const user1 = interaction.options.getUser('participant1');
+        const user2 = interaction.options.getUser('participant2');
+
+        if (!user1 || !user2) {
+          await interaction.reply({
+            content: '❌ **Error**: Both participants are required for 1v1 matches.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        // Check if both users are different
+        if (user1.id === user2.id) {
+          await interaction.reply({
+            content: '❌ **Error**: You cannot create a 1v1 match between the same user.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        // Verify that both users exist in the database
+        const user1Exists = userRepository.exists(user1.id);
+        const user2Exists = userRepository.exists(user2.id);
+
+        if (!user1Exists || !user2Exists) {
+          await interaction.reply({
+            content: `❌ **Error**: ${
+              !user1Exists ? user1.username : user2.username
+            } is not initialized. Use /init to add them to the system first.`,
+            ephemeral: true,
+          });
+          return;
+        }
+
+        // Create a 1v1 match
+        const match = this.matchManager.createUserMatch(
+          user1.id,
+          user1.username,
+          user2.id,
+          user2.username,
+        );
+
+        // Calculate time until auto-start for this specific match
+        const timeRemaining = this.matchManager.getBettingTimeRemaining(match.id);
+        const minutesRemaining = Math.floor(timeRemaining / 60);
+        const secondsRemaining = timeRemaining % 60;
+        const timeRemainingStr = `${minutesRemaining}m ${secondsRemaining}s`;
+
+        await interaction.reply(`
+🎮 **1v1 Match #${match.id} Created!**
+**${user1.username}** 🆚 **${user2.username}**
+
+⏰ **Betting Window: 5 Minutes**
+• Betting will automatically close in ${timeRemainingStr}
+• Use \`/bet ${match.id} @${user1.username} <amount>\` to bet on ${user1.username}
+• Use \`/bet ${match.id} @${user2.username} <amount>\` to bet on ${user2.username}
+• Only one bet per user is allowed
+• Admins can set the result with \`/match result ${match.id}\`
+
+Good luck! 🍀
+          `);
+      } else if (matchType === 'team') {
+        // Handle team match creation
+        const team1 = interaction.options.getString('team1');
+        const team2 = interaction.options.getString('team2');
+
+        if (!team1 || !team2) {
+          await interaction.reply({
+            content: '❌ **Error**: Both team names are required for team matches.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        // Check if both teams are different
+        if (team1.toLowerCase() === team2.toLowerCase()) {
+          await interaction.reply({
+            content: '❌ **Error**: You cannot create a match between the same team.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        // Create a team match
+        const match = this.matchManager.createTeamMatch(team1, team2);
+
+        // Calculate time until auto-start for this specific match
+        const timeRemaining = this.matchManager.getBettingTimeRemaining(match.id);
+        const minutesRemaining = Math.floor(timeRemaining / 60);
+        const secondsRemaining = timeRemaining % 60;
+        const timeRemainingStr = `${minutesRemaining}m ${secondsRemaining}s`;
+
+        await interaction.reply(`
+🎮 **Team Match #${match.id} Created!**
+**${team1}** 🆚 **${team2}**
+
+⏰ **Betting Window: 5 Minutes**
+• Betting will automatically close in ${timeRemainingStr}
+• Use \`/bet ${match.id} ${team1} <amount>\` to bet on ${team1}
+• Use \`/bet ${match.id} ${team2} <amount>\` to bet on ${team2}
+• Only one bet per user is allowed
+• Admins can set the result with \`/match result ${match.id}\`
+
+Good luck! 🍀
+          `);
+      }
+      break;
+    }
+    case 'start': {
+      // Check admin permissions
+      if (!interaction.memberPermissions?.has('Administrator')) {
+        await interaction.reply({
+          content: '🚫 **Access Denied**: Only administrators can start matches.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const matchId = interaction.options.getInteger('match_id', true);
+
+      // Start the match
+      const result = this.matchManager.startMatch(matchId);
+      if (result.success) {
+        // Get match and bet statistics
+        const matchData = result.data.match;
+        const betStats = result.data.bets;
+
+        // Announce match start with statistics
+        await interaction.reply(`
+⏰ **BETTING CLOSED!** ⏰
+Match #${matchId} has started! Betting is now closed.
+
+**${matchData.team1}** 🆚 **${matchData.team2}**
+
+📊 **Bet Statistics:**
+• **${matchData.team1}**: ${betStats.team1.count} bets, ${betStats.team1.amount} PunaCoins
+• **${matchData.team2}**: ${betStats.team2.count} bets, ${betStats.team2.amount} PunaCoins
+
+Total bets: ${betStats.total} (${betStats.totalAmount} PunaCoins)
+          `);
       } else {
-        statusEmoji = '❌';
-        statusText = 'Canceled';
+        await interaction.reply({
+          content: `❌ **Error**: ${result.message}`,
+          ephemeral: true,
+        });
+      }
+      break;
+    }
+    case 'cancel': {
+      // Check admin permissions
+      if (!interaction.memberPermissions?.has('Administrator')) {
+        await interaction.reply({
+          content: '🚫 **Access Denied**: Only administrators can cancel matches.',
+          ephemeral: true,
+        });
+        return;
       }
 
-      // Sort bets by amount (highest first)
-      const sortedTeam1Bets = [...team1Bets].sort((a, b) => b.amount - a.amount);
-      const sortedTeam2Bets = [...team2Bets].sort((a, b) => b.amount - a.amount);
+      const matchId = interaction.options.getInteger('match_id', true);
 
-      // Display all bets or limit to top X
-      const team1BettorsToShow = sortedTeam1Bets.slice(0, betLimit);
-      const team2BettorsToShow = sortedTeam2Bets.slice(0, betLimit);
-
-      // Generate the bettors text
-      const team1BettorsText =
-        team1BettorsToShow.length > 0
-          ? team1BettorsToShow.map(b => `<@${b.user_id}>: ${b.amount} PunaCoins`).join('\n  ')
-          : 'None';
-
-      const team2BettorsText =
-        team2BettorsToShow.length > 0
-          ? team2BettorsToShow.map(b => `<@${b.user_id}>: ${b.amount} PunaCoins`).join('\n  ')
-          : 'None';
-
-      // Show total counts if there are more bets than shown
-      const team1ExtraCount = Math.max(0, team1Bets.length - team1BettorsToShow.length);
-      const team2ExtraCount = Math.max(0, team2Bets.length - team2BettorsToShow.length);
-
-      const team1Extra =
-        team1ExtraCount > 0
-          ? `\n  _...and ${team1ExtraCount} more ${team1ExtraCount === 1 ? 'bettor' : 'bettors'}_`
-          : '';
-      const team2Extra =
-        team2ExtraCount > 0
-          ? `\n  _...and ${team2ExtraCount} more ${team2ExtraCount === 1 ? 'bettor' : 'bettors'}_`
-          : '';
-
-      const bettingRatio =
-        team1Total + team2Total > 0
-          ? `${((team1Total / (team1Total + team2Total)) * 100).toFixed(1)}% : ${(
-            (team2Total / (team1Total + team2Total)) *
-              100
-          ).toFixed(1)}%`
-          : 'No bets';
-
-      return `
-📊 **Match #${match.id}** - ${statusEmoji} ${statusText}
-**${match.team1}** 🆚 **${match.team2}**
-
-💰 **Betting Overview:**
-**${match.team1}**: ${team1Bets.length} bets, ${team1Total} PunaCoins
-**${match.team2}**: ${team2Bets.length} bets, ${team2Total} PunaCoins
-Ratio: ${bettingRatio}
-
-🥇 **Bettors for ${match.team1}:**
-  ${team1BettorsText}${team1Extra}
-  
-🥇 **Bettors for ${match.team2}:**
-  ${team2BettorsText}${team2Extra}
-`;
-    });
-
-    Promise.all(matchPromises).then(matchHistoryDetails => {
-      const fullHistory = matchHistoryDetails.join('\n───────────────────────\n');
-
-      let title = '📜 **Recent';
-
-      if (viewMode === 'all') {
-        title += ' Match History';
-      } else if (viewMode === 'finished') {
-        title += ' Completed Match History';
-      } else if (viewMode === 'pending') {
-        title += ' Active Match History';
-      }
-
-      if (betLimit < 999) {
-        title += ` (Top ${betLimit} bets per team)**:`;
+      // Cancel the match
+      const result = this.matchManager.cancelMatch(matchId);
+      if (result.success) {
+        await interaction.reply(
+          `✅ Match #${matchId} has been canceled. All bets have been refunded.`,
+        );
       } else {
-        title += ' (All bets)**:';
+        await interaction.reply({
+          content: `❌ **Error**: ${result.message}`,
+          ephemeral: true,
+        });
+      }
+      break;
+    }
+    case 'result': {
+      // Check admin permissions
+      if (!interaction.memberPermissions?.has('Administrator')) {
+        await interaction.reply({
+          content: '🚫 **Access Denied**: Only administrators can set match results.',
+          ephemeral: true,
+        });
+        return;
       }
 
-      msg.channel.send(`${title}\n${fullHistory}`);
+      const matchId = interaction.options.getInteger('match_id', true);
+
+      // Check if this is a regular match
+      const match = this.matchManager.getMatch(matchId);
+
+      if (match) {
+        if (match.match_type === '1v1') {
+          // Handle 1v1 match result
+          const winner = interaction.options.getUser('winner', true);
+
+          // Validate winner is in the match
+          if (match.player1_id !== winner.id && match.player2_id !== winner.id) {
+            await interaction.reply({
+              content: `❌ **Error**: User "${winner.username}" is not part of Match #${matchId}.`,
+              ephemeral: true,
+            });
+            return;
+          }
+
+          // Set match result
+          const resultResponse = this.matchManager.finishMatch(matchId, winner.id);
+
+          if (resultResponse.success) {
+            // Get the updated match data
+            const matchData = this.matchManager.getMatch(matchId);
+            if (matchData && matchData.winner === winner.id) {
+              const bets = this.matchManager.getMatchBets(matchData.id);
+              const totalBets = bets.length;
+              const totalAmount = bets.reduce((sum, bet) => sum + bet.amount, 0);
+
+              // Generate winners list
+              const winningBets = bets.filter(b => b.team === winner.id);
+              const winnersList =
+                  winningBets.length > 0
+                    ? winningBets
+                      .sort((a, b) => b.amount - a.amount)
+                      .slice(0, 5)
+                      .map(
+                        b =>
+                          `• <@${b.user_id}>: ${b.amount} PunaCoins → ${b.amount * 2} PunaCoins`,
+                      )
+                      .join('\n')
+                    : 'No winning bets';
+
+              await interaction.reply(`
+🏆 **MATCH RESULTS** 🏆
+**Match #${matchData.id}**: **${matchData.team1}** 🆚 **${matchData.team2}**
+
+🎉 **WINNER: ${winner.username}!**
+
+💰 **Top Winners:**
+${winnersList}
+
+Congratulations to all winners! Your bets have been paid out at 2x.
+                `);
+            }
+          } else {
+            await interaction.reply({
+              content: `❌ ${resultResponse.message}`,
+              ephemeral: true,
+            });
+          }
+        } else if (match.match_type === 'team') {
+          // Handle team match result
+          const team = interaction.options.getString('team', true);
+
+          // Validate team is in the match
+          if (match.team1 !== team && match.team2 !== team) {
+            await interaction.reply({
+              content: `❌ **Error**: Team "${team}" is not part of Match #${matchId}.`,
+              ephemeral: true,
+            });
+            return;
+          }
+
+          // Set match result
+          const resultResponse = this.matchManager.finishTeamMatch(matchId, team);
+
+          if (resultResponse.success) {
+            // Get the updated match data
+            const matchData = this.matchManager.getMatch(matchId);
+            if (matchData && matchData.winner === team) {
+              const bets = this.matchManager.getMatchBets(matchData.id);
+              const totalBets = bets.length;
+              const totalAmount = bets.reduce((sum, bet) => sum + bet.amount, 0);
+
+              // Generate winners list
+              const winningBets = bets.filter(b => b.team === team);
+              const winnersList =
+                  winningBets.length > 0
+                    ? winningBets
+                      .sort((a, b) => b.amount - a.amount)
+                      .slice(0, 5)
+                      .map(
+                        b =>
+                          `• <@${b.user_id}>: ${b.amount} PunaCoins → ${b.amount * 2} PunaCoins`,
+                      )
+                      .join('\n')
+                    : 'No winning bets';
+
+              await interaction.reply(`
+🏆 **TEAM MATCH RESULTS** 🏆
+**Match #${matchData.id}**: **${matchData.team1}** 🆚 **${matchData.team2}**
+
+🎉 **WINNER: ${team}!**
+
+💰 **Top Winners:**
+${winnersList}
+
+Congratulations to all winners! Your bets have been paid out at 2x.
+                `);
+            }
+          } else {
+            await interaction.reply({
+              content: `❌ ${resultResponse.message}`,
+              ephemeral: true,
+            });
+          }
+        }
+      } else {
+        await interaction.reply({
+          content: `❌ **Error**: Match #${matchId} not found.`,
+          ephemeral: true,
+        });
+      }
+      break;
+    }
+    }
+  }
+
+  /**
+   * Handle /event commands for event management
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
+   */
+  private async handleEventCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+    const subCommand = interaction.options.getSubcommand();
+
+    // Log the command
+    Logger.command(userId, username, `/event ${subCommand}`);
+
+    switch (subCommand) {
+    case 'create': {
+      // Check admin permissions
+      if (!interaction.memberPermissions?.has('Administrator')) {
+        await interaction.reply({
+          content: '🚫 **Access Denied**: Only administrators can create events.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const name = interaction.options.getString('name', true);
+      const description = interaction.options.getString('description') || '';
+      const participant = interaction.options.getUser('participant');
+
+      // Create the event
+      const event = this.eventManager.createEvent(name, description, participant?.id);
+
+      // Format the time remaining
+      const timeRemaining = this.eventManager.getBettingTimeRemaining(event.id);
+      const minutesRemaining = Math.floor(timeRemaining / 60);
+      const secondsRemaining = timeRemaining % 60;
+      const timeRemainingStr = `${minutesRemaining}m ${secondsRemaining}s`;
+
+      // Send response
+      await interaction.reply(`
+📊 **Event #${event.id} Created!**
+**${name}**
+${description ? `*${description}*\n` : ''}
+${participant ? `**Participant**: <@${participant.id}>\n` : ''}
+⏰ **Betting Window: 5 Minutes**
+• Betting will automatically close in ${timeRemainingStr}
+• Use \`/bet ${event.id} Yes <amount>\` to bet on "Yes"
+• Use \`/bet ${event.id} No <amount>\` to bet on "No"
+• Only one bet per user is allowed
+• Admins can set the result with \`/event result ${event.id}\`
+
+Good luck! 🍀
+      `);
+      break;
+    }
+    case 'start': {
+      // Check admin permissions
+      if (!interaction.memberPermissions?.has('Administrator')) {
+        await interaction.reply({
+          content: '🚫 **Access Denied**: Only administrators can start events.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const eventId = interaction.options.getInteger('event_id', true);
+
+      // Start the event
+      const result = this.eventManager.startEvent(eventId);
+      if (result.success) {
+        // Get event and bet statistics
+        const eventData = result.data.event;
+        const betStats = result.data.bets;
+
+        // Announce event start with statistics
+        await interaction.reply(`
+⏰ **BETTING CLOSED!** ⏰
+Event #${eventId} has started! Betting is now closed.
+
+**${eventData.title}**
+${eventData.description ? `*${eventData.description}*\n` : ''}
+
+📊 **Bet Statistics:**
+• **Yes**: ${betStats.yes.count} bets, ${betStats.yes.amount} PunaCoins
+• **No**: ${betStats.no.count} bets, ${betStats.no.amount} PunaCoins
+
+Total bets: ${betStats.total} (${betStats.totalAmount} PunaCoins)
+        `);
+      } else {
+        await interaction.reply({
+          content: `❌ **Error**: ${result.message}`,
+          ephemeral: true,
+        });
+      }
+      break;
+    }
+    case 'cancel': {
+      // Check admin permissions
+      if (!interaction.memberPermissions?.has('Administrator')) {
+        await interaction.reply({
+          content: '🚫 **Access Denied**: Only administrators can cancel events.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const eventId = interaction.options.getInteger('event_id', true);
+
+      // Cancel the event
+      const result = this.eventManager.cancelEvent(eventId);
+      if (result.success) {
+        await interaction.reply(
+          `✅ Event #${eventId} has been canceled. All bets have been refunded.`,
+        );
+      } else {
+        await interaction.reply({
+          content: `❌ **Error**: ${result.message}`,
+          ephemeral: true,
+        });
+      }
+      break;
+    }
+    case 'result': {
+      // Check admin permissions
+      if (!interaction.memberPermissions?.has('Administrator')) {
+        await interaction.reply({
+          content: '🚫 **Access Denied**: Only administrators can set event results.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const eventId = interaction.options.getInteger('event_id', true);
+      const outcome = interaction.options.getBoolean('outcome', true);
+
+      // Set the event result
+      const result = this.eventManager.setEventResult(eventId, outcome);
+      if (result.success) {
+        // Get event and winner data
+        const event = this.eventManager.getEventInfo(eventId);
+        if (event) {
+          const bets = this.eventManager.getEventBets(eventId);
+
+          // Generate winners list
+          const winningBets = bets.filter(b => b.outcome === outcome);
+          const winnersList =
+              winningBets.length > 0
+                ? winningBets
+                  .sort((a, b) => b.amount - a.amount)
+                  .slice(0, 5)
+                  .map(
+                    b => `• <@${b.user_id}>: ${b.amount} PunaCoins → ${b.amount * 2} PunaCoins`,
+                  )
+                  .join('\n')
+                : 'No winning bets';
+
+          await interaction.reply(`
+🏆 **EVENT RESULTS** 🏆
+**Event #${event.id}**: ${event.title}
+${event.description ? `*${event.description}*\n` : ''}
+
+🎉 **OUTCOME: ${outcome ? 'YES' : 'NO'}!**
+
+💰 **Top Winners:**
+${winnersList}
+
+Congratulations to all winners! Your bets have been paid out at 2x.
+        `);
+        }
+      } else {
+        await interaction.reply({
+          content: `❌ **Error**: ${result.message}`,
+          ephemeral: true,
+        });
+      }
+      break;
+    }
+    }
+  }
+
+  /**
+   * Handle /bet command
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
+   */
+  private async handleBetCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+    const id = interaction.options.getInteger('id', true);
+    const option = interaction.options.getString('option', true);
+    const amount = interaction.options.getInteger('amount', true);
+
+    // Log the command
+    Logger.command(userId, username, `/bet ${id} ${option} ${amount}`);
+
+    // Check if id is for a match
+    const match = this.matchManager.getMatch(id);
+    if (match) {
+      // Place bet on match
+      const result = this.matchManager.placeBetOnMatch(userId, username, id, option, amount);
+
+      if (result.success) {
+        // Send a reply to the user who placed the bet
+        await interaction.reply({
+          content: `✅ **Bet Placed!** ${result.message}`,
+          ephemeral: true,
+        });
+
+        // Announce the bet to the channel - using followUp for public visibility
+        try {
+          await interaction.followUp({
+            content: `💰 **New Bet!** <@${userId}> bet ${amount} PunaCoins on **${option}** in match #${id} (${match.team1} vs ${match.team2})`,
+            ephemeral: false,
+          });
+        } catch (err) {
+          Logger.error('Bet', `Failed to announce bet: ${err}`);
+        }
+      } else {
+        await interaction.reply({
+          content: `❌ **Error**: ${result.message}`,
+          ephemeral: true,
+        });
+      }
+      return;
+    }
+
+    // Check if id is for an event
+    const event = this.eventManager.getEventInfo(id);
+    if (event) {
+      // Place bet on event
+      const result = this.eventManager.placeBet(userId, username, id, option === 'Yes', amount);
+
+      if (result.success) {
+        // Send a reply to the user who placed the bet
+        await interaction.reply({
+          content: `✅ **Bet Placed!** ${result.message}`,
+          ephemeral: true,
+        });
+
+        // Announce the bet to the channel - using followUp for public visibility
+        try {
+          await interaction.followUp({
+            content: `💰 **New Bet!** <@${userId}> bet ${amount} PunaCoins on **${option}** in event #${id} (${event.title})`,
+            ephemeral: false,
+          });
+        } catch (err) {
+          Logger.error('Bet', `Failed to announce event bet: ${err}`);
+        }
+      } else {
+        await interaction.reply({
+          content: `❌ **Error**: ${result.message}`,
+          ephemeral: true,
+        });
+      }
+      return;
+    }
+
+    // Neither match nor event found
+    await interaction.reply({
+      content: `❌ **Error**: ID #${id} not found. Please select a valid match or event.`,
+      ephemeral: true,
     });
   }
 
   /**
-   * Handle !help command
-   * @param {DiscordMessage} msg - Discord.js message object
+   * Handle /leaderboard command
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
    */
-  private handleHelpCommand(msg: any): void {
+  private async handleLeaderboardCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+    const limit = interaction.options.getInteger('limit') || 5;
+
+    // Log the command
+    Logger.command(userId, username, `/leaderboard ${limit}`);
+
+    try {
+      // Get top users by balance
+      const leaderboard = this.balanceManager.getLeaderboard(limit);
+
+      if (leaderboard.length === 0) {
+        await interaction.reply({
+          content: '❌ **No Data**: There are no users with a balance yet.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Build leaderboard display
+      const leaderboardDisplay = leaderboard
+        .map((user, index) => {
+          const medal =
+            index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+          return `${medal} <@${user.id}>: **${user.balance}** PunaCoins`;
+        })
+        .join('\n');
+
+      await interaction.reply(`
+💰 **PunaCoin Leaderboard** 💰
+*Top ${leaderboard.length} users by balance:*
+
+${leaderboardDisplay}
+      `);
+    } catch (error) {
+      Logger.error('Leaderboard', `Error showing leaderboard: ${error}`);
+      await interaction.reply({
+        content: '❌ **Error**: There was a problem getting the leaderboard data.',
+        ephemeral: true,
+      });
+    }
+  }
+
+  /**
+   * Handle /history command
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
+   */
+  private async handleHistoryCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+    const limit = interaction.options.getInteger('limit') || 5;
+
+    // Log the command
+    Logger.command(userId, username, `/history ${limit}`);
+
+    try {
+      // Get user's transaction history
+      const transactions = this.balanceManager.getTransactionHistory(userId, limit);
+
+      if (transactions.length === 0) {
+        await interaction.reply({
+          content: "❌ **No History**: You don't have any transactions yet.",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Format transaction history
+      const transactionList = transactions
+        .map(tx => {
+          const date = new Date(tx.created_at).toLocaleString();
+          const amountDisplay = tx.amount > 0 ? `+${tx.amount}` : tx.amount;
+          const amountColor = tx.amount > 0 ? '🟢' : '🔴';
+
+          let description;
+          switch (tx.type) {
+          case 'init':
+            description = 'Initial balance';
+            break;
+          case 'bet':
+            description = `Placed bet #${tx.reference_id}`;
+            break;
+          case 'payout':
+            description = `Winnings from bet #${tx.reference_id}`;
+            break;
+          case 'refund':
+            description = `Refund from bet #${tx.reference_id}`;
+            break;
+          case 'event_bet':
+            description = `Placed event bet #${tx.reference_id}`;
+            break;
+          case 'event_payout':
+            description = `Winnings from event bet #${tx.reference_id}`;
+            break;
+          case 'donate':
+            description = 'Donation';
+            break;
+          default:
+            description = tx.type;
+          }
+
+          return `**${date}**: ${amountColor} ${description} - **${amountDisplay}** PunaCoins`;
+        })
+        .join('\n');
+
+      await interaction.reply({
+        content: `
+📜 **Transaction History** 📜
+*Your last ${transactions.length} transactions:*
+
+${transactionList}
+
+Current balance: **${this.balanceManager.getBalance(userId)}** PunaCoins
+        `,
+        ephemeral: true,
+      });
+    } catch (error) {
+      Logger.error('History', `Error showing transaction history: ${error}`);
+      await interaction.reply({
+        content: '❌ **Error**: There was a problem getting your transaction history.',
+        ephemeral: true,
+      });
+    }
+  }
+
+  /**
+   * Handle /matches command
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
+   */
+  private async handleMatchesHistoryCommand(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<void> {
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+    const limit = interaction.options.getInteger('limit') || 5;
+
+    // Log the command
+    Logger.command(userId, username, `/matches ${limit}`);
+
+    try {
+      // Get recent matches
+      const matches = this.matchManager.getMatchHistory(limit);
+
+      if (matches.length === 0) {
+        await interaction.reply({
+          content: '❌ **No Matches**: There are no matches in the history yet.',
+          ephemeral: false,
+        });
+        return;
+      }
+
+      // Format match history
+      const matchesList = matches
+        .map(match => {
+          const date = new Date(match.created_at as string).toLocaleString();
+          let statusDisplay;
+
+          switch (match.status) {
+          case 'pending':
+            statusDisplay = '⏳ Betting Open';
+            break;
+          case 'started':
+            statusDisplay = '🔄 In Progress';
+            break;
+          case 'done':
+            statusDisplay = `✅ Finished - Winner: **${match.winner}**`;
+            break;
+          case 'canceled':
+            statusDisplay = '❌ Canceled';
+            break;
+          default:
+            statusDisplay = match.status;
+          }
+
+          const matchType = match.match_type === 'team' ? 'Team Match' : '1v1 Match';
+
+          return `**Match #${match.id}**: ${match.team1} 🆚 ${match.team2} - ${matchType}
+*${date}* - Status: ${statusDisplay}`;
+        })
+        .join('\n\n');
+
+      await interaction.reply(`
+🏆 **Recent Matches** 🏆
+*Last ${matches.length} matches:*
+
+${matchesList}
+      `);
+    } catch (error) {
+      Logger.error('Matches', `Error showing match history: ${error}`);
+      await interaction.reply({
+        content: '❌ **Error**: There was a problem getting the match history.',
+        ephemeral: true,
+      });
+    }
+  }
+
+  /**
+   * Handle /events command
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
+   */
+  private async handleEventsHistoryCommand(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<void> {
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+    const limit = interaction.options.getInteger('limit') || 5;
+
+    // Log the command
+    Logger.command(userId, username, `/events ${limit}`);
+
+    try {
+      // Get recent events
+      const events = this.eventManager.getEventHistory(limit);
+
+      if (events.length === 0) {
+        await interaction.reply({
+          content: '❌ **No Events**: There are no events in the history yet.',
+          ephemeral: false,
+        });
+        return;
+      }
+
+      // Format event history
+      const eventsList = events
+        .map(event => {
+          const date = new Date(event.created_at as string).toLocaleString();
+          let statusDisplay;
+          let outcomeDisplay = '';
+
+          switch (event.status) {
+          case 'pending':
+            statusDisplay = '⏳ Betting Open';
+            break;
+          case 'started':
+            statusDisplay = '🔄 In Progress';
+            break;
+          case 'done':
+            statusDisplay = '✅ Finished';
+            // Add outcome info if the event is done
+            if (event.success !== undefined) {
+              outcomeDisplay = `\nOutcome: **${event.success ? 'YES' : 'NO'}**`;
+            }
+            break;
+          case 'canceled':
+            statusDisplay = '❌ Canceled';
+            break;
+          default:
+            statusDisplay = event.status;
+          }
+
+          return `**Event #${event.id}**: ${event.title}
+*${date}* - Status: ${statusDisplay}${outcomeDisplay}
+${event.description ? `Description: ${event.description}` : ''}`;
+        })
+        .join('\n\n');
+
+      await interaction.reply(`
+📅 **Recent Events** 📅
+*Last ${events.length} events:*
+
+${eventsList}
+      `);
+    } catch (error) {
+      Logger.error('Events', `Error showing event history: ${error}`);
+      await interaction.reply({
+        content: '❌ **Error**: There was a problem getting the event history.',
+        ephemeral: true,
+      });
+    }
+  }
+
+  /**
+   * Handle /help command
+   * @param {ChatInputCommandInteraction} interaction - Discord interaction
+   */
+  private async handleHelpCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+
+    // Log the command
+    Logger.command(userId, username, '/help');
+
     const helpText = `
-🤖 **Betting Bot Commands:**
+🤖 **PunaCoin Betting Bot Commands** 🤖
 
-💰 **Balance & Leaderboard**
-\`!balance\` - Check your current balance
-\`!leaderboard\` - Show the top users by balance
+💰 **Basic Commands:**
+• \`/balance\` - Check your PunaCoin balance
+• \`/leaderboard [limit]\` - Show top users by balance
+• \`/history [limit]\` - View your transaction history
 
-🎮 **Match Management**
-\`!match\` - Show the current active match
-\`!match create <team1> <team2>\` - Create a new match
-\`!match cancel\` - Cancel the current match and refund bets
-\`!match result <winner>\` - Set the winner of the current match
-\`!match list\` - Show recent matches
-\`!match info <id>\` - Show details of a specific match
+🏆 **Match Betting:**
+• \`/matches [limit]\` - View recent matches
+• \`/bet <id> <option> <amount>\` - Place a bet on a match
 
-🎲 **Betting**
-\`!bet <team> <amount>\` - Place a bet on a team
+📅 **Event Betting:**
+• \`/events [limit]\` - View recent events
+• \`/bet <id> <Yes|No> <amount>\` - Place a bet on an event outcome
 
-📜 **History**
-\`!history bets\` - Show your betting history
-\`!history transactions\` - Show your transaction history
-\`!matches\` - Show finished matches with bets (default)
-\`!matches all\` - Show all matches with bets
-\`!matches pending\` - Show only active matches
-\`!matches <number>\` - Limit displayed bets per team
+👑 **Admin Commands:**
+• \`/init\` - Initialize balances for new server members
+• \`/match create\` - Create a new match
+• \`/match result\` - Set match result
+• \`/event create\` - Create a new event
+• \`/event result\` - Set event result
 
-❓ **Help**
-\`!help\` - Show this help message
+Need more help? Contact the server administrator.
 `;
 
-    msg.channel.send(helpText);
+    // Send help message
+    await interaction.reply({
+      content: helpText,
+      ephemeral: true,
+    });
   }
 
   /**

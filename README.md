@@ -1,19 +1,110 @@
-# Discord Betting Bot
+# Cow Village Bot
 
-A Discord bot for managing bets on team matches with SQLite database storage. Built with TypeScript and ESM.
+A Discord bot for managing betting matches, events, and virtual currency.
 
 ## Features
 
-- User balance management
-- Create matches between teams
-- Place bets on teams
-- View leaderboard of top users by balance
-- Cancel matches and refund bets
-- Finish matches and pay out winners
-- Transaction history tracking
-- User bet history
-- SQLite database for reliable data storage
-- TypeScript support for better type safety
+- 💰 Virtual currency system (PunaCoins)
+- 🎯 Match betting (1v1 and team matches)
+- 🎭 Event betting (Yes/No outcomes)
+- 📊 Leaderboards and statistics
+- 💾 Persistent data with SQLite
+
+## Command Overview
+
+### Balance & Economy
+
+- `/balance` - Check your PunaCoin balance
+- `/leaderboard` - See the richest users
+- `/init <user> [balance]` - Initialize a user (Admin only)
+
+### Match Management (Admin Only)
+
+- `/match create <type> [options]` - Create a new match
+- `/match start <match_id>` - Start a match immediately
+- `/match cancel <match_id>` - Cancel a match and refund bets
+- `/match result <match_id> [winner/team]` - Set the result of a match
+
+### Event Management (Admin Only)
+
+- `/event create <name> [participant]` - Create a Yes/No event
+- `/event start <event_id>` - Start an event
+- `/event cancel <event_id>` - Cancel an event and refund bets
+- `/event result <event_id> <outcome>` - Set event outcome (Yes/No)
+
+### Betting
+
+- `/bet <id> <option> <amount>` - Place a bet
+  - For matches: bet on username or team name
+  - For events: bet "Yes" or "No"
+
+### History & Statistics
+
+- `/history` - View your personal betting history
+- `/matches [filter]` - View match history or active matches
+  - Filters: all, active, completed, 1v1, team
+
+## Detailed Usage
+
+### Match Types
+
+1. **1v1 Matches**
+
+   - Two users compete against each other
+   - Required parameters: `participant1` and `participant2`
+   - Example: `/match create 1v1 "Chess Tournament" @User1 @User2`
+
+2. **Team Matches**
+   - Two teams compete against each other
+   - Required parameters: `team1` and `team2`
+   - Example: `/match create team "Football Finals" "Team Red" "Team Blue"`
+
+### Events
+
+- Yes/No prediction events
+- Optional: can be associated with a specific participant
+- Example: `/event create "Will it rain tomorrow?" @WeatherForecast`
+
+### Betting Process
+
+1. Admin creates a match or event
+2. Users place bets during the 5-minute betting window
+3. Match or event starts automatically (or admin can start it immediately)
+4. Admin sets the result when the match or event is complete
+5. Winnings are automatically distributed (2x payout)
+
+## Admin Commands
+
+Certain commands require Administrator permissions:
+
+- Creating, starting, canceling, and setting results for matches and events
+- Initializing users with starting balances
+
+## Installation
+
+1. Clone the repository
+2. Install dependencies with `npm install`
+3. Configure environment variables in `.env`:
+   ```
+   DISCORD_TOKEN=your_token_here
+   CLIENT_ID=your_client_id_here
+   ```
+4. Build the project with `npm run build`
+5. Run the bot with `npm start`
+
+## Development
+
+- Written in TypeScript
+- Uses Discord.js for bot functionality
+- Uses SQLite for persistent storage
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Author
+
+Made with 💖 by Cravle
 
 ## Project Structure
 
@@ -42,7 +133,7 @@ A Discord bot for managing bets on team matches with SQLite database storage. Bu
 ├── dist/                    # Compiled JavaScript files (generated)
 ├── index.ts                 # Entry point
 ├── tsconfig.json            # TypeScript configuration
-├── .env                     # Environment variables (Discord token)
+├── .env                     # Environment variables (Discord token, Client ID)
 └── README.md                # This file
 ```
 
@@ -53,9 +144,10 @@ A Discord bot for managing bets on team matches with SQLite database storage. Bu
    ```
    npm install
    ```
-3. Create a `.env` file with your Discord bot token:
+3. Create a `.env` file with your Discord bot token and client ID:
    ```
    DISCORD_TOKEN=your_token_here
+   CLIENT_ID=your_client_id_here
    ```
 4. Build the TypeScript code:
    ```
@@ -85,38 +177,62 @@ A Discord bot for managing bets on team matches with SQLite database storage. Bu
 
 ## Commands
 
-### Basic Commands
-- `!balance` - Check your current balance
-- `!bet <team> <amount>` - Place a bet on a team
-- `!leaderboard` - View the top 5 users by balance
-- `!help` - Show all available commands
+### User Commands
 
-### Match Commands
-- `!match` - Show the current active match
-- `!match create <team1> <team2>` - Create a match between two teams
-- `!match cancel` - Cancel the current match and refund all bets
-- `!match result <winner>` - Set the result of the match and pay out winners
-- `!match list` - Show recent match history
-- `!match info <id>` - Show details about a specific match
-
-### User History
-- `!history bets` - View your betting history
-- `!history transactions` - View your transaction history
+- `/balance` - Check your PunaCoin balance
+- `/leaderboard` - Show current PunaCoin leaderboard
+- `/bet` - Place a bet on a match or event
+- `/history` - View your personal betting history
+- `/matches` - Show detailed match history with filtering options
 
 ### Admin Commands
-- `!init` - Initialize balances for all server members (admin only)
+
+- `/init` - Initialize a user with starting balance
+- `/match create` - Create a new match (supports 1v1, team, and event types)
+- `/match start` - Start a match immediately
+- `/match cancel` - Cancel a match and refund all bets
+- `/match result` - Set the result of a match and pay out winners
+- `/help` - Show help information
+
+## Match Types
+
+The bot supports three types of matches:
+
+### 1v1 Matches
+
+Matches between two Discord users. Users bet on which player will win.
+
+### Team Matches
+
+Matches between two teams (can be anything like game teams, sports teams, etc). Users bet on which team will win.
+
+### Events
+
+Single events with yes/no outcomes. Users bet on whether the event will be successful or not.
+
+## Bot Permissions
+
+When adding the bot to your server, ensure it has the following permissions:
+
+- Read/Send Messages
+- Use Slash Commands
+- Read Message History
+- Embed Links
+- Mention Everyone (optional, for announcements)
 
 ## Database Structure
 
 The bot uses SQLite with the following tables:
 
 ### users
+
 - `id` (TEXT PRIMARY KEY) - Discord user ID
 - `name` (TEXT) - Discord username
 - `balance` (INTEGER) - User's current balance
 - `created_at` (TIMESTAMP) - When user was created
 
 ### matches
+
 - `id` (INTEGER PRIMARY KEY) - Match ID
 - `status` (TEXT) - Match status (pending/done/canceled/none)
 - `team1` (TEXT) - First team name
@@ -126,6 +242,7 @@ The bot uses SQLite with the following tables:
 - `updated_at` (TIMESTAMP) - When match was last updated
 
 ### bets
+
 - `id` (INTEGER PRIMARY KEY) - Bet ID
 - `user_id` (TEXT) - Discord user ID
 - `match_id` (INTEGER) - Match ID
@@ -135,6 +252,7 @@ The bot uses SQLite with the following tables:
 - `created_at` (TIMESTAMP) - When bet was placed
 
 ### transactions
+
 - `id` (INTEGER PRIMARY KEY) - Transaction ID
 - `user_id` (TEXT) - Discord user ID
 - `amount` (INTEGER) - Transaction amount
@@ -142,22 +260,17 @@ The bot uses SQLite with the following tables:
 - `reference_id` (INTEGER) - Reference to another record (e.g. bet ID)
 - `created_at` (TIMESTAMP) - When transaction occurred
 
-## Dependencies
-
-- discord.js - Discord API integration
-- dotenv - Environment variable management
-- better-sqlite3 - SQLite database client
-- typescript - For type safety and modern JavaScript features
-
-## How to Get a Bot Token
+## How to Get Bot Token and Client ID
 
 1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
 2. Create a new application
 3. Go to the "Bot" section and create a bot
-4. Copy the bot token and add it to your `.env` file
-5. Invite the bot to your server using the OAuth2 URL generator
+4. Copy the bot token and add it to your `.env` file as `DISCORD_TOKEN`
+5. From the "General Information" section, copy the "Application ID" and add it to your `.env` file as `CLIENT_ID`
+6. Invite the bot to your server using the OAuth2 URL generator with the `applications.commands` scope
 
 ## Notes
 
 - Each user starts with 1000 coins
 - Only one match can be active at a time
+- Slash commands may take up to an hour to appear after the bot starts due to Discord's global command registration

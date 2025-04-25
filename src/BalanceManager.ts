@@ -36,7 +36,7 @@ export class BalanceManager {
       transactionRepository.createInitialTransaction(userId, amount);
       return { id: userId, name: username, balance: amount };
     }
-    
+
     // Update existing user
     return userRepository.updateBalance(userId, amount);
   }
@@ -51,10 +51,10 @@ export class BalanceManager {
    * @returns {number} New balance after adjustment
    */
   adjustBalance(
-    userId: string, 
-    username: string, 
-    amount: number, 
-    type: 'init' | 'bet' | 'payout' | 'refund' | 'donate' = 'donate', 
+    userId: string,
+    username: string,
+    amount: number,
+    type: 'init' | 'bet' | 'payout' | 'refund' | 'donate' | 'event_bet' | 'event_payout' = 'donate',
     referenceId?: number,
   ): number {
     // Ensure user exists
@@ -62,7 +62,7 @@ export class BalanceManager {
       userRepository.createOrUpdate({ id: userId, name: username, balance: this.START_BALANCE });
       transactionRepository.createInitialTransaction(userId, this.START_BALANCE);
     }
-    
+
     // Record transaction
     transactionRepository.create({
       userId,
@@ -70,7 +70,7 @@ export class BalanceManager {
       type,
       referenceId,
     });
-    
+
     // Update balance and return updated user
     const updatedUser = userRepository.adjustBalance(userId, amount);
     return updatedUser.balance;
@@ -92,7 +92,7 @@ export class BalanceManager {
    */
   initializeAllMembers(members: Map<string, any>): number {
     let added = 0;
-    
+
     // Process each member
     members.forEach(member => {
       if (!member.user.bot && !userRepository.exists(member.id)) {
@@ -102,24 +102,24 @@ export class BalanceManager {
           name: member.user.username,
           balance: this.START_BALANCE,
         });
-        
+
         // Record initial transaction
         transactionRepository.createInitialTransaction(member.id, this.START_BALANCE);
-        
+
         added++;
       }
     });
-    
+
     return added;
   }
-  
+
   /**
    * Get a user's transaction history
-   * @param {string} userId - Discord user ID 
+   * @param {string} userId - Discord user ID
    * @param {number} limit - Maximum number of transactions to fetch
    * @returns {Array} User's transaction history
    */
   getTransactionHistory(userId: string, limit = 10): any[] {
     return transactionRepository.getUserHistory(userId, limit);
   }
-} 
+}

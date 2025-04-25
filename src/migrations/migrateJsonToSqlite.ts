@@ -8,6 +8,7 @@ import userRepository from '../database/repositories/UserRepository.js';
 import matchRepository from '../database/repositories/MatchRepository.js';
 import betRepository from '../database/repositories/BetRepository.js';
 import transactionRepository from '../database/repositories/TransactionRepository.js';
+import { MatchType } from '../types/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,12 +28,12 @@ function migrateBalances(): number {
     console.log('Balances file not found, skipping migration');
     return 0;
   }
-  
+
   const balancesData = JSON.parse(fs.readFileSync(balancesPath, 'utf8'));
   let migratedCount = 0;
-  
+
   console.log(`Migrating ${Object.keys(balancesData).length} user balances...`);
-  
+
   for (const [userId, balance] of Object.entries(balancesData)) {
     // Create user with balance
     userRepository.createOrUpdate({
@@ -40,13 +41,13 @@ function migrateBalances(): number {
       name: 'Unknown User', // We don't have usernames in the JSON data
       balance: balance as number,
     });
-    
+
     // Create initial transaction for the balance
     transactionRepository.createInitialTransaction(userId, balance as number);
-    
+
     migratedCount++;
   }
-  
+
   console.log(`Migrated ${migratedCount} user balances successfully`);
   return migratedCount;
 }
@@ -73,33 +74,34 @@ function migrateMatch(): number {
     console.log('Match file not found, skipping migration');
     return 0;
   }
-  
+
   const matchData = JSON.parse(fs.readFileSync(matchPath, 'utf8')) as OldMatch;
-  
+
   // Skip if no match data or match is not in a valid state
   if (!matchData || !matchData.team1 || !matchData.team2) {
     console.log('No valid match data found, skipping match migration');
     return 0;
   }
-  
+
   console.log(`Migrating match: ${matchData.team1} vs ${matchData.team2}`);
-  
+
   // Create match in database
   const match = matchRepository.create({
     team1: matchData.team1,
     team2: matchData.team2,
-    status: matchData.status as 'pending' | 'done' | 'canceled' | 'none' || 'none',
+    status: (matchData.status as 'pending' | 'done' | 'canceled' | 'none') || 'none',
+    match_type: MatchType.TEAM, // Use the enum value
   });
-  
+
   // Set winner if match is done
   if (matchData.status === 'done' && matchData.winner) {
     matchRepository.setWinner(match.id, matchData.winner);
   }
-  
+
   // Migrate bets if there are any
   if (Array.isArray(matchData.bets) && matchData.bets.length > 0) {
     console.log(`Migrating ${matchData.bets.length} bets...`);
-    
+
     for (const bet of matchData.bets) {
       // Determine bet result based on match status and winner
       let betResult: 'win' | 'loss' | 'refund' | 'pending' = 'pending';
@@ -108,34 +110,34 @@ function migrateMatch(): number {
       } else if (matchData.status === 'canceled') {
         betResult = 'refund';
       }
-      
+
       // Create bet in database with result
       const stmt = db.getConnection().prepare(`
         INSERT INTO bets (user_id, match_id, team, amount, result)
         VALUES (?, ?, ?, ?, ?)
         RETURNING *
       `);
-      
+
       const createdBet = stmt.get(bet.userId, match.id, bet.team, bet.amount, betResult) as any;
-      
+
       // Create transaction for the bet
       transactionRepository.createBetTransaction(bet.userId, bet.amount, createdBet.id);
-      
+
       // If this was a winning bet and match is done, also create a payout transaction
       if (betResult === 'win') {
         const payout = bet.amount * 2; // Fixed 2x payout
         transactionRepository.createPayoutTransaction(bet.userId, payout, createdBet.id);
       }
-      
+
       // If match was canceled, create a refund transaction
       if (betResult === 'refund') {
         transactionRepository.createRefundTransaction(bet.userId, bet.amount, createdBet.id);
       }
     }
-    
+
     console.log(`Migrated ${matchData.bets.length} bets successfully`);
   }
-  
+
   return 1;
 }
 
@@ -145,17 +147,16 @@ function migrateMatch(): number {
 async function migrate(): Promise<void> {
   console.log('Starting migration from JSON to SQLite...');
   console.log(`Looking for JSON files at: ${balancesPath} and ${matchPath}`);
-  
+
   try {
     // Migrate user balances
     const balancesCount = migrateBalances();
-    
+
     // Migrate match and bets
     const matchCount = migrateMatch();
-    
+
     console.log('Migration completed successfully!');
     console.log(`Summary: Migrated ${balancesCount} users and ${matchCount} matches`);
-    
   } catch (error) {
     console.error('Error during migration:', error);
   }
@@ -169,4 +170,4 @@ if (import.meta.url === new URL(import.meta.url).href) {
   });
 }
 
-export { migrate }; 
+export { migrate };

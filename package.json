@@ -11,10 +11,13 @@
     "migrate": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/migrations/migrateJsonToSqlite.js",
     "update-users": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/updateUserNames.js",
     "sync-users": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/syncAllUsers.js",
+    "update-schema": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/updateSchema.js",
     "lint": "eslint 'src/**/*.ts' 'index.ts' --fix"
   },
   "dependencies": {
+    "@discordjs/rest": "^2.4.3",
     "better-sqlite3": "^8.4.0",
+    "discord-api-types": "^0.38.1",
     "discord.js": "^14.11.0",
     "dotenv": "^16.0.3",
     "sqlite3": "^5.1.6"
