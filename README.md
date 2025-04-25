@@ -1,37 +1,63 @@
 # Discord Betting Bot
 
-A simple Discord bot that allows users to bet on matches using virtual coins.
+A Discord bot for managing bets on team matches.
 
 ## Features
 
-- Announce matches between two teams
-- Place bets on announced matches
-- Check your coin balance
-- Persistent balance storage
+- User balance management
+- Create matches between teams
+- Place bets on teams
+- View leaderboard of top users by balance
+- Cancel matches and refund bets
+- Finish matches and pay out winners
+
+## Project Structure
+
+```
+.
+├── data/                  # Data storage directory
+│   ├── balances.json      # User balance data
+│   └── match.json         # Current match data
+├── src/                   # Source code
+│   ├── DataManager.js     # Handles file operations and data persistence
+│   ├── BalanceManager.js  # Manages user balances
+│   ├── MatchManager.js    # Handles bet matches and bet operations
+│   └── BetBot.js          # Main Discord bot class
+├── index.js               # Entry point
+├── .env                   # Environment variables (Discord token)
+└── README.md              # This file
+```
 
 ## Setup
 
-1. Install Node.js (v16 or higher)
-2. Clone this repository
-3. Install dependencies:
-   ```bash
+1. Clone this repository
+2. Install dependencies:
+   ```
    npm install
    ```
-4. Create a `.env` file in the root directory and add your Discord bot token:
+3. Create a `.env` file with your Discord bot token:
    ```
-   DISCORD_TOKEN=your_bot_token_here
+   DISCORD_TOKEN=your_token_here
    ```
-5. Start the bot:
-   ```bash
-   npm start
+4. Start the bot:
+   ```
+   node index.js
    ```
 
 ## Commands
 
-- `!announce Team1 vs Team2` - Announce a new match
-- `!bet [team] [amount]` - Place a bet on a team
 - `!balance` - Check your current balance
-- `!help` - Show all available commands
+- `!init` - Initialize balances for all server members (admin only)
+- `!match create Team1 Team2` - Create a match between two teams
+- `!match cancel` - Cancel the current match and refund all bets
+- `!match result TeamName` - Set the result of the match and pay out winners
+- `!bet TeamName Amount` - Place a bet on a team
+- `!leaderboard` - View the top 5 users by balance
+
+## Dependencies
+
+- discord.js
+- dotenv
 
 ## How to Get a Bot Token
 
