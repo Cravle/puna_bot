@@ -395,9 +395,12 @@ export class MatchManager {
       betRepository.updateResult(bet.id, 'loss');
     }
 
+    // Get the winner's username for the log message
+    const winnerUsername = winnerId === match.player1_id ? match.team1 : match.team2;
+
     Logger.success(
       'Match',
-      `Match #${matchId} result set: ${winnerId} wins! ${winningBets.length} winning bets paid out.`,
+      `Match #${matchId} result set: ${winnerUsername} wins! ${winningBets.length} winning bets paid out.`,
     );
 
     return {
@@ -511,6 +514,15 @@ export class MatchManager {
   }
 
   /**
+   * Get completed match history (only matches with "done" status)
+   * @param {number} limit - Maximum number of matches to return
+   * @returns {Array} Completed match history
+   */
+  getCompletedMatchHistory(limit = 5): Match[] {
+    return matchRepository.getCompletedHistory(limit);
+  }
+
+  /**
    * Get bets for a specific match
    * @param {number} matchId - Match ID
    * @returns {Array} Bets for the match
@@ -538,8 +550,19 @@ export class MatchManager {
     if (!match) return 'Match not found';
 
     const bets = betRepository.findByMatchId(matchId);
-    const team1Bets = bets.filter(b => b.team === match.team1);
-    const team2Bets = bets.filter(b => b.team === match.team2);
+
+    // Determine what to filter on based on match type
+    let team1Id = match.team1;
+    let team2Id = match.team2;
+
+    // For 1v1 matches, we need to filter by player IDs, not usernames
+    if (match.match_type === MatchType.ONE_VS_ONE) {
+      team1Id = match.player1_id || match.team1;
+      team2Id = match.player2_id || match.team2;
+    }
+
+    const team1Bets = bets.filter(b => b.team === team1Id);
+    const team2Bets = bets.filter(b => b.team === team2Id);
 
     const team1Total = team1Bets.reduce((sum, b) => sum + b.amount, 0);
     const team2Total = team2Bets.reduce((sum, b) => sum + b.amount, 0);
@@ -563,22 +586,31 @@ export class MatchManager {
         ? team2TopBettors.map(b => `<@${b.user_id}>: ${b.amount} PunaCoins`).join('\n• ')
         : 'No bets placed';
 
+    // Create a visually enhanced announcement
     return `
-🏆 **MATCH HAS STARTED!** 🏆
-**Match #${match.id}**: **${match.team1}** 🆚 **${match.team2}**
+🎮 **MATCH HAS STARTED!** 🎮
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📊 **Betting Summary:**
-• Total Bets: ${bets.length} (${team1Bets.length} on ${match.team1}, ${team2Bets.length} on ${match.team2})
-• Total Amount: ${totalAmount} PunaCoins
-• Odds: ${team1Percent}% : ${team2Percent}%
+**Match #${match.id}**
+**${match.team1}** ⚔️ **${match.team2}**
 
-💰 **Top Bettors for ${match.team1}:**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 **BETTING SUMMARY**
+
+💰 **Total Amount**: ${totalAmount} PunaCoins
+📈 **Odds**: ${team1Percent}% : ${team2Percent}%
+👥 **Participants**: ${bets.length} bettors (${team1Bets.length} vs ${team2Bets.length})
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔵 **${match.team1}** (${team1Bets.length} bets, ${team1Total} PunaCoins)
 • ${team1BettorsText}
 
-💰 **Top Bettors for ${match.team2}:**
+🔴 **${match.team2}** (${team2Bets.length} bets, ${team2Total} PunaCoins)
 • ${team2BettorsText}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⏰ **Betting is now CLOSED!** The match result will be announced soon.
+⏰ **BETTING IS NOW CLOSED!**
+The match result will be announced soon.
 `;
   }
 
@@ -623,8 +655,19 @@ export class MatchManager {
 
     // Generate bet statistics for announcement
     const bets = this.getMatchBets(matchId);
-    const team1Bets = bets.filter(b => b.team === match.team1);
-    const team2Bets = bets.filter(b => b.team === match.team2);
+
+    // Determine what to filter on based on match type
+    let team1Id = match.team1;
+    let team2Id = match.team2;
+
+    // For 1v1 matches, we need to filter by player IDs, not usernames
+    if (match.match_type === MatchType.ONE_VS_ONE) {
+      team1Id = match.player1_id || match.team1;
+      team2Id = match.player2_id || match.team2;
+    }
+
+    const team1Bets = bets.filter(b => b.team === team1Id);
+    const team2Bets = bets.filter(b => b.team === team2Id);
     const team1Total = team1Bets.reduce((sum, bet) => sum + bet.amount, 0);
     const team2Total = team2Bets.reduce((sum, bet) => sum + bet.amount, 0);
     const totalBets = bets.length;

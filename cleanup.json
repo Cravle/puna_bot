@@ -1,0 +1,13 @@
+{
+  "name": "betbot-cleanup",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Database cleanup script for BetBot",
+  "main": "cleanup.js",
+  "scripts": {
+    "start": "node cleanup.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^8.0.0"
+  }
+}

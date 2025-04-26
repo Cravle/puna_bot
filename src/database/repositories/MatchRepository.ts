@@ -230,6 +230,24 @@ class MatchRepository {
   }
 
   /**
+   * Get completed match history (only matches with "done" status)
+   *
+   * @param {number} limit - Maximum number of matches to return
+   * @returns {Match[]} Array of completed matches sorted by creation date
+   */
+  getCompletedHistory(limit = 10): Match[] {
+    const stmt = db.getConnection().prepare(`
+      SELECT * 
+      FROM matches 
+      WHERE status = 'done'
+      ORDER BY created_at DESC 
+      LIMIT ?
+    `);
+
+    return stmt.all(limit) as Match[];
+  }
+
+  /**
    * Start a match, changing status from pending to started
    *
    * @param {number} matchId - Match ID
