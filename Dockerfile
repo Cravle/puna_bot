@@ -49,8 +49,8 @@ RUN rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/goo
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Verify Chrome installation
-RUN apt-get update && apt-get install -y chromium-browser && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Verify Chrome installation - Puppeteer image already includes Chrome, no need to install Chromium
+# Using existing Chrome instead of installing a new browser
 
 # Keep using root user for all file operations
 # Copy package files
@@ -89,11 +89,10 @@ RUN chmod +x /app/backup-scheduler.sh
 
 # Verify Chrome location
 RUN which google-chrome || echo "Default Chrome not found in PATH"
-RUN which chromium-browser || echo "Chromium not found in PATH"
-RUN ls -la /usr/bin/chromium-browser || echo "Chromium binary not found at expected location"
+RUN ls -la /usr/bin/google-chrome || echo "Chrome binary not found at expected location"
 
 # Create entrypoint script with precise Chrome configuration
-RUN echo '#!/bin/bash\n\n# Print database location info\necho "Database directory contents:"\nls -la /app/data\n\n# Start backup scheduler in background\nnohup /app/backup-scheduler.sh &\n\n# Set environment variables for Puppeteer\nexport PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false\nexport PUPPETEER_EXECUTABLE_PATH=$(which chromium-browser)\n\n# Log Chrome location\necho "Using Chrome at: $PUPPETEER_EXECUTABLE_PATH"\n\n# Start main application with Puppeteer in no-sandbox mode\nNODE_OPTIONS=--no-warnings exec node dist/index.js' > /app/entrypoint.sh
+RUN echo '#!/bin/bash\n\n# Print database location info\necho "Database directory contents:"\nls -la /app/data\n\n# Start backup scheduler in background\nnohup /app/backup-scheduler.sh &\n\n# Set environment variables for Puppeteer\nexport PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false\nexport PUPPETEER_EXECUTABLE_PATH=$(which google-chrome)\n\n# Log Chrome location\necho "Using Chrome at: $PUPPETEER_EXECUTABLE_PATH"\n\n# Start main application with Puppeteer in no-sandbox mode\nNODE_OPTIONS=--no-warnings exec node dist/index.js' > /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Fix ownership of all files
@@ -105,7 +104,7 @@ USER pptruser
 # Environment variables for Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 ENV PUPPETEER_SKIP_DOWNLOAD=false
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 ENV PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu"
 
 # Important: Define volume for persistent database storage
