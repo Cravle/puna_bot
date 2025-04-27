@@ -14,45 +14,46 @@ async function ensureChromeInstalled() {
   try {
     Logger.info('Startup', 'Checking if Chrome is installed...');
 
-    // Create Chrome directories
-    const renderCachePath = '/opt/render/.cache/puppeteer';
-
-    try {
-      if (!fs.existsSync(renderCachePath)) {
-        fs.mkdirSync(renderCachePath, { recursive: true });
-        execSync(`chmod -R 777 ${renderCachePath}`);
-        Logger.info('Startup', `Created cache directory: ${renderCachePath}`);
+    // Check if we have chrome-path.txt
+    if (fs.existsSync('./chrome-path.txt')) {
+      const chromePath = fs.readFileSync('./chrome-path.txt', 'utf8').trim();
+      if (fs.existsSync(chromePath)) {
+        Logger.info('Startup', `Found existing Chrome at: ${chromePath}`);
+        process.env.PUPPETEER_EXECUTABLE_PATH = chromePath;
+        return true;
+      } else {
+        Logger.warn('Startup', `Chrome path in chrome-path.txt doesn't exist: ${chromePath}`);
       }
-    } catch (e) {
-      Logger.error('Startup', `Failed to create cache directory: ${e}`);
     }
 
-    // Install Chrome using Puppeteer's browser installer
+    // Try to install Chrome using our script
     try {
-      Logger.info('Startup', 'Installing Chrome headless shell...');
-      execSync('npm explore puppeteer -- npm run postinstall', { stdio: 'inherit' });
-      execSync('npx puppeteer browsers install chrome-headless-shell', { stdio: 'inherit' });
-      Logger.info('Startup', 'Chrome installed successfully!');
+      Logger.info('Startup', 'Running Chrome installation script...');
 
-      // Find the Chrome path
-      const chromeInstallDir = '/opt/render/.cache/puppeteer/chrome-headless-shell';
-      if (fs.existsSync(chromeInstallDir)) {
-        // Use find to locate the chrome-headless-shell binary
-        const findCmd = `find ${chromeInstallDir} -name "chrome-headless-shell" -type f | head -1`;
-        const chromePath = execSync(findCmd, { encoding: 'utf8' }).trim();
+      // Run the fix-chrome.js script
+      const { fileURLToPath } = await import('url');
+      const { dirname } = await import('path');
 
-        if (chromePath && fs.existsSync(chromePath)) {
-          // Make it executable
-          execSync(`chmod +x "${chromePath}"`);
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = dirname(__filename);
 
-          // Save the path to environment variable
-          process.env.PUPPETEER_EXECUTABLE_PATH = chromePath;
+      const scriptPath = path.join(__dirname, 'src', 'scripts', 'fix-chrome.js');
 
-          // Also save to file for persistence
-          fs.writeFileSync('./chrome-path.txt', chromePath);
-          Logger.info('Startup', `Chrome path saved: ${chromePath}`);
-          return true;
+      if (fs.existsSync(scriptPath)) {
+        Logger.info('Startup', `Running Chrome installation script: ${scriptPath}`);
+        execSync(`node ${scriptPath}`, { stdio: 'inherit' });
+
+        // Check if installation was successful
+        if (fs.existsSync('./chrome-path.txt')) {
+          const chromePath = fs.readFileSync('./chrome-path.txt', 'utf8').trim();
+          if (fs.existsSync(chromePath)) {
+            Logger.info('Startup', `Chrome installed successfully at: ${chromePath}`);
+            process.env.PUPPETEER_EXECUTABLE_PATH = chromePath;
+            return true;
+          }
         }
+      } else {
+        Logger.error('Startup', `Chrome installation script not found at: ${scriptPath}`);
       }
     } catch (installError) {
       Logger.error('Startup', `Failed to install Chrome: ${installError}`);

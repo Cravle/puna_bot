@@ -7,6 +7,7 @@
   "scripts": {
     "prebuild": "node src/scripts/fix-chrome.js",
     "build": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc",
+    "build:render": "tsc",
     "start": "node dist/index.js",
     "dev": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && nodemon --watch 'src/**' --ext 'ts' --exec 'tsc && node dist/index.js'",
     "migrate": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/migrations/migrateJsonToSqlite.js",
