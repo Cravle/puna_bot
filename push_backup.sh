@@ -1,70 +1,75 @@
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status
-set -e
+set -e  # Остановить скрипт если какая-то команда упала
 
+# --- Переменные ---
 DB_FILE="data/betting.db"
 BACKUP_BRANCH="backup"
-MAIN_BRANCH="master" # Your main branch
+MAIN_BRANCH="master"
 COMMIT_MESSAGE="Automated DB backup $(date +'%Y-%m-%d %H:%M:%S')"
 REPO_URL="git@github.com:Cravle/puna_bot.git"
 
-echo "Starting database backup process..."
+echo "=== 🛡️  Starting database backup ==="
 
-# --- Start ssh-agent and add private key from ENV ---
-echo "Starting ssh-agent..."
-eval "$(ssh-agent -s)"
+# --- SSH Setup ---
+if [ -n "$SSH_PRIVATE_KEY" ]; then
+  echo "Setting up SSH key..."
+  eval "$(ssh-agent -s)"
+  echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+  
+  mkdir -p ~/.ssh
+  chmod 700 ~/.ssh
+  touch ~/.ssh/known_hosts
+  ssh-keyscan github.com >> ~/.ssh/known_hosts
+fi
 
-echo "Adding private key..."
-echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-
-# --- Git Setup (Render environment might not have .git) ---
+# --- Git Setup ---
 if [ ! -d ".git" ]; then
-  echo "Initializing new git repository..."
+  echo "Initializing git repository..."
   git init
-
-  echo "Setting remote origin..."
   git remote add origin "$REPO_URL"
-
-  echo "Setting git user config..."
   git config user.name "Render CI"
   git config user.email "ci@render.com"
 fi
 
-# --- Fetch backup branch ---
-echo "Fetching backup branch..."
-git fetch origin $BACKUP_BRANCH || echo "No backup branch yet."
+echo "Checking git remote:"
+git remote -v
 
-# --- Check if backup branch exists locally ---
-if git show-ref --quiet refs/heads/$BACKUP_BRANCH; then
+# --- Fetch & Checkout ---
+echo "Fetching from origin..."
+git fetch origin || echo "Nothing to fetch yet."
+
+# Пытаемся переключиться на backup ветку
+if git rev-parse --verify $BACKUP_BRANCH >/dev/null 2>&1; then
   echo "Switching to local branch '$BACKUP_BRANCH'..."
   git checkout $BACKUP_BRANCH
 else
-  echo "Creating local branch '$BACKUP_BRANCH' from origin/$MAIN_BRANCH..."
-  git checkout -b $BACKUP_BRANCH origin/$MAIN_BRANCH || git checkout -b $BACKUP_BRANCH
+  echo "Creating local branch '$BACKUP_BRANCH' from '$MAIN_BRANCH'..."
+  git fetch origin $MAIN_BRANCH || echo "No remote main branch, using local state."
+  git checkout -b $BACKUP_BRANCH || git checkout -b $BACKUP_BRANCH origin/$MAIN_BRANCH
 fi
 
-# --- Pull latest changes ---
+# --- Pull последнюю версию ---
 echo "Pulling latest changes for '$BACKUP_BRANCH'..."
-git pull origin $BACKUP_BRANCH || echo "First backup, no remote changes yet."
+git pull origin $BACKUP_BRANCH || echo "First time backup, no remote changes."
 
-# --- Add and Commit the Database ---
+# --- Добавляем базу данных ---
 echo "Adding database file '$DB_FILE'..."
 git add $DB_FILE
 
+# --- Проверяем изменения ---
 if git diff --staged --quiet; then
-  echo "No changes detected in '$DB_FILE'. Backup not needed."
+  echo "No changes detected in '$DB_FILE'. Skipping backup."
 else
-  echo "Committing changes..."
+  echo "Committing backup..."
   git commit -m "$COMMIT_MESSAGE"
-
-  echo "Pushing changes to origin/$BACKUP_BRANCH..."
+  echo "Pushing backup to '$BACKUP_BRANCH'..."
   git push origin $BACKUP_BRANCH
-  echo "Database backup pushed successfully."
+  echo "✅ Backup pushed successfully."
 fi
 
-# --- Switch back to main branch ---
-echo "Switching back to branch '$MAIN_BRANCH'..."
-git checkout $MAIN_BRANCH
+# --- Возврат на main ветку ---
+echo "Switching back to '$MAIN_BRANCH'..."
+git checkout $MAIN_BRANCH || echo "No main branch locally."
 
-echo "Database backup process finished."
+echo "=== ✅ Database backup finished ==="
