@@ -55,7 +55,7 @@ export class Aternos {
     try {
       // Launch options with appropriate arguments
       const launchOptions: LaunchOptions = {
-        headless: 'shell' as 'shell',
+        headless: true,
         args: [
           '--incognito',
           '--no-sandbox',
@@ -98,6 +98,12 @@ export class Aternos {
 
       const context = this.browser.defaultBrowserContext();
       this.page = await context.newPage();
+
+      // Set user agent
+      await this.page.setUserAgent(
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36'
+      );
+      console.log('User agent set');
 
       // Load cookies from DB using the repository
       const dbCookies = cookieRepository.getCookies();
