@@ -71,7 +71,14 @@ fi
 
 # --- Add and Commit the Database ---
 echo "Adding database file '$DB_FILE'..."
+
+echo "--- Git status BEFORE add ---"
+git status -s
+
 git add $DB_FILE
+
+echo "--- Git status AFTER add ---"
+git status -s
 
 if git diff --staged --quiet; then
   echo "No changes detected in '$DB_FILE'. Backup not needed."
