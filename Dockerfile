@@ -5,7 +5,9 @@ WORKDIR /app
 
 # Install build dependencies for better-sqlite3
 USER root
-RUN apt-get update && apt-get install -y \
+# Fix Chrome repository issues and install dependencies
+RUN rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google.list && \
+    apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
