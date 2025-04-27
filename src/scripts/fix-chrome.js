@@ -1,10 +1,9 @@
 // Script to install and configure Chrome for Puppeteer on Render.com
-import fs from 'fs';
-import { execSync } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const fs = require('fs');
+const { execSync } = require('child_process');
+const path = require('path');
 
-// Create simple logger instead of importing
+// Create simple logger
 const Logger = {
   info: (tag, message) => console.log(`[INFO] [${tag}] ${message}`),
   error: (tag, message) => console.error(`[ERROR] [${tag}] ${message}`),
@@ -12,7 +11,8 @@ const Logger = {
   success: (tag, message) => console.log(`[SUCCESS] [${tag}] ${message}`)
 };
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Get directory paths
+const __dirname = path.dirname(require.main.filename);
 const projectRoot = path.resolve(__dirname, '../../');
 
 async function installChrome() {
