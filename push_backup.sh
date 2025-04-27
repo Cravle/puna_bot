@@ -7,7 +7,7 @@ DB_FILE="data/betting.db"
 BACKUP_BRANCH="backup"
 MAIN_BRANCH="master" # Your main branch
 COMMIT_MESSAGE="Automated DB backup $(date +'%Y-%m-%d %H:%M:%S')"
-REPO_URL="https://github.com/Cravle/puna_bot.git"
+REPO_URL="git@github.com:Cravle/puna_bot.git"
 
 echo "Starting database backup process..."
 
