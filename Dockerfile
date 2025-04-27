@@ -68,8 +68,14 @@ RUN mkdir -p /app/logs /app/data/backups /app/scripts /app/config
 # Copy source code
 COPY src/ /app/src/
 
-# Copy other project files (without database)
-COPY tsconfig.json index.js build.js render.js .env* /app/
+# Copy other project files (without database) - only files that actually exist
+COPY tsconfig.json /app/
+COPY index.ts /app/
+COPY tsconfig.node.json /app/
+COPY .eslintrc.json .eslintignore .prettierrc /app/
+COPY README.md /app/
+COPY setup-chrome.sh /app/
+COPY cleanup.js cleanup.json resequence.js /app/
 
 # Build TypeScript project
 RUN npm run build:render
