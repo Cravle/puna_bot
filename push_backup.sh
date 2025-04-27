@@ -5,7 +5,7 @@ set -e
 
 DB_FILE="data/betting.db"
 BACKUP_BRANCH="backup"
-MAIN_BRANCH="main" # Or your primary branch name (e.g., master)
+MAIN_BRANCH="master" # <-- FIXED: Changed to master
 COMMIT_MESSAGE="Automated DB backup $(date +'%Y-%m-%d %H:%M:%S')"
 
 # --- SSH Configuration (Crucial for Render Deploy Key) ---
@@ -15,46 +15,32 @@ if [ -z "$GIT_SSH_URL" ]; then
   exit 1
 fi
 
-# Ensure the .ssh directory exists
+# Ensure the .ssh directory exists (still needed for ssh-agent)
 mkdir -p ~/.ssh
 chmod 700 ~/.ssh
-
-# Disable strict host key checking to avoid prompts
-# This is generally safe in controlled CI/CD environments
-echo "Host github.com\n  StrictHostKeyChecking no\n  UserKnownHostsFile=/dev/null" >> ~/.ssh/config
-# If using GitLab/Bitbucket, add similar blocks for their hostnames (e.g., Host gitlab.com)
 
 # --- Add Private Key from SSH_PRIVATE_KEY Environment Variable ---
 if [ -z "$SSH_PRIVATE_KEY" ]; then
   echo "Error: SSH_PRIVATE_KEY environment variable is not set. Git push will likely fail." >&2
-  # Decide if this should be a fatal error or just a warning
-  # exit 1 
 else
   echo "Attempting to add SSH key from SSH_PRIVATE_KEY environment variable..."
-  # Start the ssh-agent
   eval "$(ssh-agent -s)" > /dev/null
-  # Add the key. Use tr -d '\r' to remove potential carriage returns if key was copied from Windows
   echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
   echo "SSH key added to agent."
 fi
 # --- End Key Handling ---
 
 # --- Git Configuration ---
-# Set remote URL to use SSH, fetched from environment variable
-# We will ensure origin exists and set the URL later
-# echo "Setting remote origin URL to SSH: $GIT_SSH_URL"
-# git remote set-url origin "$GIT_SSH_URL"
-
 # Optional: Configure git user (Render might do this automatically)
 # git config --global user.name "Render CI"
-# git config --global user.email "ci@render-ci.com" 
+# git config --global user.email "ci@render-ci.com"
 
+# Define the SSH command to disable strict host key checking
+GIT_SSH_COMMAND_OPTS="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 
 echo "Starting database backup process..."
 
-# --- Git Setup: Ensure Remote Origin is Correctly Configured --- 
-
-# Check if remote 'origin' exists
+# --- Git Setup: Ensure Remote Origin is Correctly Configured ---
 if git remote | grep -q '^origin$'; then
   echo "Remote 'origin' found. Ensuring it uses the correct SSH URL..."
   git remote set-url origin "$GIT_SSH_URL"
@@ -63,25 +49,25 @@ else
   git remote add origin "$GIT_SSH_URL"
 fi
 
-# Ensure we have the latest refs from the remote
-# git fetch origin
-
 # --- Fetch backup branch ---
 echo "Fetching backup branch..."
-git fetch origin $BACKUP_BRANCH || echo "No backup branch yet."
+# Use GIT_SSH_COMMAND for fetch
+GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git fetch origin $BACKUP_BRANCH || echo "No backup branch yet."
 
 # --- Check if backup branch exists locally ---
 if git show-ref --quiet refs/heads/$BACKUP_BRANCH; then
   echo "Switching to local branch '$BACKUP_BRANCH'..."
   git checkout $BACKUP_BRANCH
 else
-  echo "Creating local branch '$BACKUP_BRANCH' from origin/$MAIN_BRANCH..."
-  git checkout -b $BACKUP_BRANCH origin/$MAIN_BRANCH || git checkout -b $BACKUP_BRANCH
+  echo "Creating local branch '$BACKUP_BRANCH' from origin/$MAIN_BRANCH..." # <-- Uses correct MAIN_BRANCH variable
+  # Try creating from remote master first, fallback to creating an empty branch if remote doesn't exist yet
+  GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git checkout -b $BACKUP_BRANCH origin/$MAIN_BRANCH || git checkout -b $BACKUP_BRANCH
 fi
 
 # --- Pull latest changes ---
 echo "Pulling latest changes for '$BACKUP_BRANCH'..."
-git pull origin $BACKUP_BRANCH || echo "First backup, no remote changes yet."
+# Use GIT_SSH_COMMAND for pull
+GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git pull origin $BACKUP_BRANCH || echo "First backup, no remote changes yet."
 
 # --- Add and Commit the Database ---
 echo "Adding database file '$DB_FILE'..."
@@ -94,12 +80,13 @@ else
   git commit -m "$COMMIT_MESSAGE"
 
   echo "Pushing changes to origin/$BACKUP_BRANCH..."
-  git push origin $BACKUP_BRANCH
+  # Use GIT_SSH_COMMAND for push
+  GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git push origin $BACKUP_BRANCH
   echo "Database backup pushed successfully."
 fi
 
-# --- Switch back to main branch ---
-echo "Switching back to branch '$MAIN_BRANCH'..."
+# --- Switch back to main branch --- 
+echo "Switching back to branch '$MAIN_BRANCH'..." # <-- Uses correct MAIN_BRANCH variable
 git checkout $MAIN_BRANCH
 
 echo "Database backup process finished."
