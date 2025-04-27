@@ -72,10 +72,13 @@ COPY src/ /app/src/
 COPY tsconfig.json /app/
 COPY index.ts /app/
 COPY tsconfig.node.json /app/
-COPY .eslintrc.json .eslintignore .prettierrc /app/
+COPY .eslintrc.json /app/
+COPY .eslintignore /app/
+COPY .prettierrc /app/
 COPY README.md /app/
-COPY setup-chrome.sh /app/
-COPY cleanup.js cleanup.json resequence.js /app/
+COPY cleanup.js /app/
+COPY cleanup.json /app/
+COPY resequence.js /app/
 
 # Build TypeScript project
 RUN npm run build:render
