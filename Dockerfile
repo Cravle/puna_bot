@@ -63,16 +63,13 @@ RUN npm install
 RUN npx puppeteer browsers install chrome
 
 # Create necessary directories first
-RUN mkdir -p /app/logs /app/data/backups
+RUN mkdir -p /app/logs /app/data/backups /app/scripts /app/config
 
-# Copy project files EXCEPT database (to avoid overwriting mounted database)
+# Copy source code
 COPY src/ /app/src/
-COPY tsconfig.json /app/
-COPY .env* /app/
-COPY public/ /app/public/ 
-COPY scripts/ /app/scripts/
-COPY types/ /app/types/
-COPY README.md /app/
+
+# Copy other project files (without database)
+COPY tsconfig.json index.js build.js render.js .env* /app/
 
 # Build TypeScript project
 RUN npm run build:render
