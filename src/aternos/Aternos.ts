@@ -52,6 +52,13 @@ export class Aternos {
 
   async init(): Promise<void> {
     try {
+      // Hard-coded Chrome path that we know works on Render.com
+      const KNOWN_CHROME_PATHS = [
+        '/opt/render/.cache/puppeteer/chrome-headless-shell/linux-135.0.7049.114/chrome-headless-shell-linux64/chrome-headless-shell',
+        '/opt/render/.cache/puppeteer/chrome-headless-shell/linux-*/chrome-headless-shell-linux64/chrome-headless-shell',
+        '/opt/render/.cache/puppeteer/chrome/chrome',
+      ];
+
       // Check for running on Render.com or similar platform
       const isRenderPlatform =
         process.env.RENDER === 'true' ||
@@ -79,104 +86,110 @@ export class Aternos {
       if (isRenderPlatform) {
         console.log('Detected Render.com platform, using Render-specific configuration...');
 
-        // First check if we have a chrome-path.txt file (created by fix-chrome.js)
-        try {
+        // Check for the placeholder value and ignore it
+        if (process.env.PUPPETEER_EXECUTABLE_PATH === '/the/path/from/logs') {
+          console.log('Ignoring placeholder path in environment variable (/the/path/from/logs)');
+        } else if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+          // Valid environment variable path takes precedence
           const fs = await import('fs');
-          const pathModule = await import('path');
-          const chromePath = pathModule.resolve('./chrome-path.txt');
-
-          if (fs.existsSync(chromePath)) {
-            const executablePath = fs.readFileSync(chromePath, 'utf8').trim();
-            if (executablePath && fs.existsSync(executablePath)) {
-              console.log(`Using Chrome executable from chrome-path.txt: ${executablePath}`);
-              launchOptions.executablePath = executablePath;
-            } else {
-              console.log(`Chrome path found in chrome-path.txt (${executablePath}) is invalid.`);
-            }
+          if (fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+            console.log(
+              `Using Chrome path from environment: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
+            );
+            launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
           } else {
-            console.log('No chrome-path.txt file found, checking environment variable.');
+            console.log(
+              `Warning: Chrome path from environment doesn't exist: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
+            );
           }
-        } catch (e) {
-          console.log('Error reading chrome-path.txt:', e);
         }
 
-        // If no valid path from file, check environment variable
-        if (!launchOptions.executablePath && process.env.PUPPETEER_EXECUTABLE_PATH) {
-          // Check if it's just our placeholder value from the docs
-          if (process.env.PUPPETEER_EXECUTABLE_PATH === '/the/path/from/logs') {
-            console.log(
-              'Detected placeholder path from documentation. Ignoring and using automatic discovery instead.'
-            );
-          } else {
-            console.log(
-              `Using Chrome executable from PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
-            );
+        // If no valid path from environment, try the chrome-path.txt file
+        if (!launchOptions.executablePath) {
+          try {
+            const fs = await import('fs');
+            const pathModule = await import('path');
+            const chromePath = pathModule.resolve('./chrome-path.txt');
 
-            // Verify the path exists before trying to use it
-            try {
-              const fs = await import('fs');
-              if (fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
-                launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+            if (fs.existsSync(chromePath)) {
+              const executablePath = fs.readFileSync(chromePath, 'utf8').trim();
+              if (executablePath && fs.existsSync(executablePath)) {
+                console.log(`Using Chrome executable from chrome-path.txt: ${executablePath}`);
+                launchOptions.executablePath = executablePath;
               } else {
                 console.log(
-                  `WARNING: The specified Chrome path doesn't exist: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
+                  `Chrome path found in chrome-path.txt (${executablePath}) doesn't exist.`
                 );
-                console.log('Will fall back to automatic discovery');
+              }
+            } else {
+              console.log('No chrome-path.txt file found.');
+            }
+          } catch (e) {
+            console.log('Error reading chrome-path.txt:', e);
+          }
+        }
+
+        // If still no path, try the known Chrome paths
+        if (!launchOptions.executablePath) {
+          console.log('Trying known Chrome paths...');
+          const fs = await import('fs');
+          const { execSync } = await import('child_process');
+
+          // First try exact paths
+          for (const knownPath of KNOWN_CHROME_PATHS) {
+            if (!knownPath.includes('*') && fs.existsSync(knownPath)) {
+              console.log(`Found Chrome at known path: ${knownPath}`);
+              launchOptions.executablePath = knownPath;
+              break;
+            }
+          }
+
+          // If not found with exact paths, try patterns with find
+          if (!launchOptions.executablePath) {
+            for (const pattern of KNOWN_CHROME_PATHS) {
+              if (pattern.includes('*')) {
+                try {
+                  const basePath = pattern.substring(0, pattern.indexOf('*'));
+                  const remaining = pattern.substring(pattern.indexOf('*') + 1);
+                  const searchName = remaining.substring(remaining.lastIndexOf('/') + 1);
+
+                  console.log(`Searching for ${searchName} in ${basePath}...`);
+                  const cmd = `find ${basePath} -name "${searchName}" -type f 2>/dev/null | head -1`;
+                  const foundPath = execSync(cmd, { encoding: 'utf8' }).trim();
+
+                  if (foundPath && fs.existsSync(foundPath)) {
+                    console.log(`Found Chrome using pattern: ${foundPath}`);
+                    launchOptions.executablePath = foundPath;
+                    break;
+                  }
+                } catch (e) {
+                  console.log(`Error searching with pattern ${pattern}:`, e);
+                }
+              }
+            }
+          }
+
+          // Last resort: standard search
+          if (!launchOptions.executablePath) {
+            try {
+              console.log('Searching for Chrome executables...');
+              const cmd =
+                'find /opt/render/.cache -name "chrome-headless-shell" -o -name "chrome" 2>/dev/null | head -1';
+              const foundPath = execSync(cmd, { encoding: 'utf8' }).trim();
+
+              if (foundPath && fs.existsSync(foundPath)) {
+                console.log(`Found Chrome with system search: ${foundPath}`);
+                launchOptions.executablePath = foundPath;
               }
             } catch (e) {
-              console.log('Error checking Chrome executable path:', e);
+              console.log('Error during system search:', e);
             }
           }
         }
 
-        // If no valid executable path was set, search for Chrome
+        // If still no Chrome path, warn but continue (will probably fail)
         if (!launchOptions.executablePath) {
-          // Search for Chrome/Chromium in common locations
-          try {
-            const { execSync } = await import('child_process');
-            console.log('Searching for Chrome/Chromium executable...');
-
-            // Try multiple potential locations
-            const potentialPaths = [
-              // Standard Puppeteer cache locations
-              '/opt/render/.cache/puppeteer/chrome-headless-shell/chrome-headless-shell-linux-*/chrome-headless-shell',
-              // System installed Chrome/Chromium
-              '/usr/bin/chromium-browser',
-              '/usr/bin/chromium',
-              '/usr/bin/google-chrome',
-              // Manual install locations
-              '/opt/render/.cache/puppeteer/chrome/chrome',
-            ];
-
-            for (const pattern of potentialPaths) {
-              try {
-                // Use find with wildcard patterns
-                const findCmd = `find ${
-                  pattern.includes('*')
-                    ? pattern.substring(0, pattern.lastIndexOf('/'))
-                    : path.dirname(pattern)
-                } -name "${path.basename(pattern)}" 2>/dev/null | head -1`;
-
-                console.log(`Searching with: ${findCmd}`);
-                const foundPath = execSync(findCmd, { encoding: 'utf8' }).trim();
-
-                if (foundPath) {
-                  console.log(`Found Chrome executable at: ${foundPath}`);
-                  launchOptions.executablePath = foundPath;
-                  break;
-                }
-              } catch (e) {
-                // Continue to next pattern
-              }
-            }
-
-            if (!launchOptions.executablePath) {
-              console.log('No Chrome executable found in standard locations');
-              console.log('Will attempt to launch without specifying executable path');
-            }
-          } catch (e) {
-            console.log('Error searching for Chrome:', e);
-          }
+          console.log('WARNING: No Chrome executable found! Puppeteer will likely fail.');
         }
 
         // On Render, set specific cache location
@@ -229,17 +242,18 @@ export class Aternos {
         if (
           error.message.includes('Could not find Chrome') ||
           error.message.includes('Failed to launch browser') ||
-          error.message.includes('Browser was not found')
+          error.message.includes('Browser was not found') ||
+          error.message.includes('at the configured path')
         ) {
           console.error('\n=== CHROME BROWSER NOT FOUND ===');
-          console.error('To fix this error, try:');
+          console.error('To fix this error:');
           console.error('1. Make sure the prebuild script ran successfully');
           console.error(
-            `2. Check your PUPPETEER_EXECUTABLE_PATH environment variable: ${
-              process.env.PUPPETEER_EXECUTABLE_PATH || '(not set)'
-            }`
+            '2. Remove the PUPPETEER_EXECUTABLE_PATH environment variable if it\'s set to "/the/path/from/logs"'
           );
-          console.error('3. Check if Chrome is installed and the path is correct');
+          console.error(
+            '3. Check the build logs for the correct Chrome path and set it as PUPPETEER_EXECUTABLE_PATH'
+          );
           console.error('==========================================\n');
         }
       }
