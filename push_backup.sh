@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status.
+# Exit immediately if a command exits with a non-zero status
 set -e
 
 DB_FILE="data/betting.db"
@@ -11,7 +11,14 @@ REPO_URL="git@github.com:Cravle/puna_bot.git"
 
 echo "Starting database backup process..."
 
-# --- Git Setup (Render environment doesn't have .git folder) ---
+# --- Start ssh-agent and add private key from ENV ---
+echo "Starting ssh-agent..."
+eval "$(ssh-agent -s)"
+
+echo "Adding private key..."
+echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+
+# --- Git Setup (Render environment might not have .git) ---
 if [ ! -d ".git" ]; then
   echo "Initializing new git repository..."
   git init
