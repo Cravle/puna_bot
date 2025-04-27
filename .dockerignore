@@ -1,0 +1,32 @@
+# Node modules
+node_modules
+
+# Source control
+.git
+.gitignore
+
+# Build artifacts
+dist
+
+# Editor files
+.vscode
+.idea
+
+# Logs
+logs
+*.log
+
+# Runtime data
+data/*.db
+
+# Environment files (you'll need to set these in Render dashboard)
+.env
+.env.*
+
+# Scripts that are not needed in Docker
+setup-chrome.sh
+src/scripts/fix-chrome.cjs
+
+# Docker related
+.dockerignore
+Dockerfile 
