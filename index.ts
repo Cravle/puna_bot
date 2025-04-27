@@ -6,66 +6,25 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import { execSync } from 'child_process';
 import path from 'path';
+import { loadChromePath } from './src/loadChromePath.js';
 
 dotenv.config();
 
-// Function to ensure Chrome is installed at startup
-async function ensureChromeInstalled() {
+// Simplified Chrome path loader - uses chrome-path.txt created by setup-chrome.sh
+function ensureChromeInstalled() {
   try {
     Logger.info('Startup', 'Checking if Chrome is installed...');
+    const chromePath = loadChromePath();
 
-    // Check if we have chrome-path.txt
-    if (fs.existsSync('./chrome-path.txt')) {
-      const chromePath = fs.readFileSync('./chrome-path.txt', 'utf8').trim();
-      if (fs.existsSync(chromePath)) {
-        Logger.info('Startup', `Found existing Chrome at: ${chromePath}`);
-        process.env.PUPPETEER_EXECUTABLE_PATH = chromePath;
-        return true;
-      } else {
-        Logger.warn('Startup', `Chrome path in chrome-path.txt doesn't exist: ${chromePath}`);
-      }
+    if (chromePath) {
+      Logger.info('Startup', `Found Chrome path: ${chromePath}`);
+      return true;
+    } else {
+      Logger.warn('Startup', 'No Chrome path found, Aternos commands may not work');
+      return false;
     }
-
-    // Try to install Chrome using our script
-    try {
-      Logger.info('Startup', 'Running Chrome installation script...');
-
-      // Run the fix-chrome.js script
-      const { fileURLToPath } = await import('url');
-      const { dirname } = await import('path');
-
-      const __filename = fileURLToPath(import.meta.url);
-      const __dirname = dirname(__filename);
-
-      const scriptPath = path.join(__dirname, 'src', 'scripts', 'fix-chrome.js');
-
-      if (fs.existsSync(scriptPath)) {
-        Logger.info('Startup', `Running Chrome installation script: ${scriptPath}`);
-        execSync(`node ${scriptPath}`, { stdio: 'inherit' });
-
-        // Check if installation was successful
-        if (fs.existsSync('./chrome-path.txt')) {
-          const chromePath = fs.readFileSync('./chrome-path.txt', 'utf8').trim();
-          if (fs.existsSync(chromePath)) {
-            Logger.info('Startup', `Chrome installed successfully at: ${chromePath}`);
-            process.env.PUPPETEER_EXECUTABLE_PATH = chromePath;
-            return true;
-          }
-        }
-      } else {
-        Logger.error('Startup', `Chrome installation script not found at: ${scriptPath}`);
-      }
-    } catch (installError) {
-      Logger.error('Startup', `Failed to install Chrome: ${installError}`);
-    }
-
-    Logger.warn(
-      'Startup',
-      'Chrome could not be installed or found. Aternos commands may not work.'
-    );
-    return false;
   } catch (error) {
-    Logger.error('Startup', `Error ensuring Chrome is installed: ${error}`);
+    Logger.error('Startup', `Error loading Chrome path: ${error}`);
     return false;
   }
 }
@@ -86,12 +45,19 @@ if (!aternosUsername || !aternosPassword || !aternosServerId) {
 // Initialize and start the bot
 (async () => {
   try {
-    // First ensure Chrome is installed
-    await ensureChromeInstalled();
+    // Check if Chrome path exists from chrome-path.txt
+    const chromeInstalled = ensureChromeInstalled();
 
-    // Then start the bot
+    // Start the bot regardless of Chrome status
     const bot = new BetBot();
     bot.start();
+
+    if (!chromeInstalled) {
+      Logger.warn(
+        'Startup',
+        'Chrome installation not found. Aternos commands will not work properly.'
+      );
+    }
   } catch (error) {
     Logger.error('Startup', `Error during bot startup: ${error}`);
   }
