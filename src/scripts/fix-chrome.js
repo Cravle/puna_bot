@@ -3,7 +3,14 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Logger } from '../utils/Logger.js';
+
+// Create simple logger instead of importing
+const Logger = {
+  info: (tag, message) => console.log(`[INFO] [${tag}] ${message}`),
+  error: (tag, message) => console.error(`[ERROR] [${tag}] ${message}`),
+  warn: (tag, message) => console.warn(`[WARNING] [${tag}] ${message}`),
+  success: (tag, message) => console.log(`[SUCCESS] [${tag}] ${message}`)
+};
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../../');
