@@ -1,6 +1,6 @@
 import { addExtra } from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import puppeteer, { PuppeteerNode } from 'puppeteer';
+import puppeteer, { PuppeteerNode, LaunchOptions } from 'puppeteer';
 import { Browser, Page, CDPSession } from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
@@ -51,29 +51,100 @@ export class Aternos {
   // private cookies: Cookie[] = [];
 
   async init(): Promise<void> {
-    this.browser = await puppeteerExtra.launch({ headless: 'shell', args: ['--incognito'] });
+    try {
+      // Check for running on Render.com or similar platform
+      const isRenderPlatform =
+        process.env.RENDER === 'true' ||
+        process.env.IS_RENDER === 'true' ||
+        process.env.RENDER_EXTERNAL_URL ||
+        process.env.RENDER_SERVICE_ID;
 
-    const context = this.browser.defaultBrowserContext();
-    this.page = await context.newPage();
+      // Launch options with appropriate arguments for different environments
+      const launchOptions: LaunchOptions = {
+        headless: 'shell' as 'shell',
+        args: [
+          '--incognito',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+        ],
+      };
 
-    // Load cookies from DB using the repository
-    const dbCookies = cookieRepository.getCookies();
-    if (dbCookies) {
-      await this.setCookies(dbCookies); // Pass loaded cookies to setCookies
-    } else {
-      console.log('No cookies found in DB to set.');
+      // Set specific cache and browser paths for Render
+      if (isRenderPlatform) {
+        console.log('Detected Render.com platform, using Render-specific configuration...');
+
+        // On Render, set specific cache location
+        const renderCachePath = '/opt/render/.cache/puppeteer';
+        process.env.PUPPETEER_CACHE_DIR = renderCachePath;
+
+        // Log the actual cache path being used
+        console.log(
+          `Using Puppeteer cache path: ${process.env.PUPPETEER_CACHE_DIR || renderCachePath}`
+        );
+
+        // Try to list what's in the cache directory
+        try {
+          const { execSync } = await import('child_process');
+          console.log('Checking cache directory contents:');
+          const lsOutput = execSync(`ls -la ${renderCachePath}`, { encoding: 'utf8' });
+          console.log(lsOutput);
+        } catch (e) {
+          console.log('Could not list cache directory:', e);
+        }
+      }
+
+      console.log('Launching browser with options:', JSON.stringify(launchOptions));
+      this.browser = await puppeteerExtra.launch(launchOptions);
+
+      const context = this.browser.defaultBrowserContext();
+      this.page = await context.newPage();
+
+      // Load cookies from DB using the repository
+      const dbCookies = cookieRepository.getCookies();
+      if (dbCookies) {
+        await this.setCookies(dbCookies); // Pass loaded cookies to setCookies
+      } else {
+        console.log('No cookies found in DB to set.');
+      }
+
+      await this.page.setJavaScriptEnabled(true);
+      await this.page.setExtraHTTPHeaders({
+        'accept-language': 'en-US,en;q=0.9',
+      });
+
+      await this.page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+      });
+
+      await this.page.goto('https://aternos.org/servers/', { waitUntil: 'networkidle2' });
+    } catch (error) {
+      console.error('Browser initialization failed:', error);
+
+      // Provide helpful error messages based on error type
+      if (error instanceof Error) {
+        if (
+          error.message.includes('Could not find Chrome') ||
+          error.message.includes('Failed to launch browser')
+        ) {
+          console.error('\n=== CHROME BROWSER NOT FOUND ===');
+          console.error(
+            'To fix this error, run: npx puppeteer browsers install chrome-headless-shell'
+          );
+          console.error('If running on Render.com, add this to your environment variables:');
+          console.error('PUPPETEER_CACHE_DIR=/opt/render/.cache/puppeteer');
+          console.error('And ensure the service has sufficient memory allocated (at least 512MB)');
+          console.error('==========================================\n');
+        }
+      }
+
+      throw error;
     }
-
-    await this.page.setJavaScriptEnabled(true);
-    await this.page.setExtraHTTPHeaders({
-      'accept-language': 'en-US,en;q=0.9',
-    });
-
-    await this.page.evaluateOnNewDocument(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    });
-
-    await this.page.goto('https://aternos.org/servers/', { waitUntil: 'networkidle2' });
   }
 
   async login(username: string, password: string): Promise<void> {

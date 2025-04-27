@@ -12,7 +12,10 @@
     "update-users": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/updateUserNames.js",
     "sync-users": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/syncAllUsers.js",
     "update-schema": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/updateSchema.js",
-    "lint": "eslint 'src/**/*.ts' 'index.ts' --fix"
+    "lint": "eslint 'src/**/*.ts' 'index.ts' --fix",
+    "postinstall": "npx puppeteer browsers install chrome-headless-shell && node dist/src/scripts/render-setup.js",
+    "install-chrome": "node dist/src/scripts/install-chrome.js",
+    "render-setup": "node dist/src/scripts/render-setup.js"
   },
   "dependencies": {
     "@discordjs/rest": "^2.4.3",
@@ -20,7 +23,10 @@
     "discord-api-types": "^0.38.1",
     "discord.js": "^14.11.0",
     "dotenv": "^16.5.0",
-    "sqlite3": "^5.1.6"
+    "sqlite3": "^5.1.6",
+    "puppeteer": "^24.4.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -30,9 +36,6 @@
     "@typescript-eslint/parser": "^5.62.0",
     "eslint": "^8.57.1",
     "nodemon": "^2.0.22",
-    "puppeteer": "^24.4.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },
