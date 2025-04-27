@@ -3,15 +3,53 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-# Setup SSH Key for Render from ENV
-echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null 2>&1
-
-# Set up variables
 DB_FILE="data/betting.db"
 BACKUP_BRANCH="backup"
-MAIN_BRANCH="master" # Your main branch
+MAIN_BRANCH="main" # Or your primary branch name (e.g., master)
 COMMIT_MESSAGE="Automated DB backup $(date +'%Y-%m-%d %H:%M:%S')"
-REPO_URL="git@github.com:Cravle/puna_bot.git"  # GitHub URL, not Render's
+
+# --- SSH Configuration (Crucial for Render Deploy Key) ---
+# Check if the required environment variable is set
+if [ -z "$GIT_SSH_URL" ]; then
+  echo "Error: GIT_SSH_URL environment variable is not set. Please set it in Render." >&2
+  exit 1
+fi
+
+# Ensure the .ssh directory exists
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+
+# Disable strict host key checking to avoid prompts
+# This is generally safe in controlled CI/CD environments
+echo "Host github.com\n  StrictHostKeyChecking no\n  UserKnownHostsFile=/dev/null" >> ~/.ssh/config
+# If using GitLab/Bitbucket, add similar blocks for their hostnames (e.g., Host gitlab.com)
+
+# --- Add Private Key from SSH_PRIVATE_KEY Environment Variable ---
+if [ -z "$SSH_PRIVATE_KEY" ]; then
+  echo "Error: SSH_PRIVATE_KEY environment variable is not set. Git push will likely fail." >&2
+  # Decide if this should be a fatal error or just a warning
+  # exit 1 
+else
+  echo "Attempting to add SSH key from SSH_PRIVATE_KEY environment variable..."
+  # Start the ssh-agent
+  eval "$(ssh-agent -s)" > /dev/null
+  # Add the key. Use tr -d '\r' to remove potential carriage returns if key was copied from Windows
+  echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
+  echo "SSH key added to agent."
+fi
+# --- End Key Handling ---
+
+# --- Git Configuration ---
+# Set remote URL to use SSH, fetched from environment variable
+echo "Setting remote origin URL to SSH: $GIT_SSH_URL"
+git remote set-url origin "$GIT_SSH_URL"
+
+# Optional: Configure git user (Render might do this automatically)
+# git config --global user.name "Render CI"
+# git config --global user.email "ci@render-ci.com" 
+
+
+echo "Starting database backup process..."
 
 # --- Git Setup (Render environment doesn't have .git folder) ---
 if [ ! -d ".git" ]; then
@@ -19,7 +57,7 @@ if [ ! -d ".git" ]; then
   git init
 
   echo "Setting remote origin..."
-  git remote add origin "$REPO_URL"
+  git remote add origin "$GIT_SSH_URL"
 
   echo "Setting git user config..."
   git config user.name "Render CI"
