@@ -32,7 +32,6 @@ import matchRepository from './database/repositories/MatchRepository.js';
 import eventRepository from './database/repositories/EventRepository.js';
 import userRepository from './database/repositories/UserRepository.js';
 import betRepository from './database/repositories/BetRepository.js';
-// Import Aternos class and status type
 import { Aternos, AternosStatus } from './aternos/Aternos.js';
 
 /**
@@ -44,8 +43,6 @@ export class BetBot {
   private matchManager: MatchManager;
   private eventManager: EventManager;
   private commands: Collection<string, any>;
-  // Add Aternos instance (optional - could be created on demand)
-  // private aternos: Aternos | null = null;
 
   constructor() {
     this.client = new Client({
@@ -2825,6 +2822,20 @@ Need more help? Contact the server administrator.
   }
 
   /**
+   * Start the Discord bot
+   */
+  start(): void {
+    const token = process.env.DISCORD_TOKEN;
+    if (!token) {
+      Logger.error('Bot', 'DISCORD_TOKEN not found in environment variables');
+      throw new Error('DISCORD_TOKEN not found in environment variables');
+    }
+
+    Logger.info('Bot', 'Connecting to Discord...');
+    this.client.login(token);
+  }
+
+  /**
    * Handle /aternos commands
    * @param {ChatInputCommandInteraction} interaction - Discord interaction
    */
@@ -2837,7 +2848,7 @@ Need more help? Contact the server administrator.
       Logger.info('AternosCmd', 'Interaction deferred, proceeding with Aternos operations');
     } catch (deferError) {
       Logger.error('AternosCmd', `Error during defer: ${deferError}`);
-      // If we can't defer, we can't proceed since operations will take too long
+      // If we can't defer, abort the command since operations will take too long
       return;
     }
 
@@ -2849,7 +2860,7 @@ Need more help? Contact the server administrator.
     // Log the command
     Logger.command(userId, username, `/aternos ${subCommand}`);
 
-    // Check if Aternos config is loaded (validated in index.ts)
+    // Check if Aternos config is loaded
     const aternosUsername = process.env.ATERNOS_USERNAME;
     const aternosPassword = process.env.ATERNOS_PASSWORD;
     const aternosServerId = process.env.ATERNOS_SERVER_ID;
@@ -2867,11 +2878,12 @@ Need more help? Contact the server administrator.
     }
 
     if (subCommand === 'start') {
-      // Immediately let the user know we're working on it
       try {
+        // Immediately let the user know we're working on it
         await interaction.editReply('⏳ Initializing Aternos... (this may take a minute)');
       } catch (replyError) {
         Logger.error('AternosCmd', `Failed to edit startup reply: ${replyError}`);
+        // Continue anyway since the defer should still be active
       }
 
       const aternosInstance = new Aternos(); // Create new instance for each command
@@ -2967,7 +2979,7 @@ Need more help? Contact the server administrator.
           }
         }
       } catch (error) {
-        Logger.error('AternosCmd', `Error in Aternos command: ${error}`);
+        Logger.error('AternosCmd', `Error during /aternos start: ${error}`);
         // Make sure to close the browser on error
         try {
           if (aternosInstance) await aternosInstance.close();
@@ -2987,26 +2999,14 @@ Need more help? Contact the server administrator.
         }
       } finally {
         // Always try to close the browser
+        Logger.info('AternosCmd', 'Closing Aternos browser...');
         try {
           await aternosInstance.close();
+          Logger.info('AternosCmd', 'Aternos browser closed.');
         } catch (closeError) {
           Logger.error('AternosCmd', `Error in final close: ${closeError}`);
         }
       }
     }
-  }
-
-  /**
-   * Start the Discord bot
-   */
-  start(): void {
-    const token = process.env.DISCORD_TOKEN;
-    if (!token) {
-      Logger.error('Bot', 'DISCORD_TOKEN not found in environment variables');
-      throw new Error('DISCORD_TOKEN not found in environment variables');
-    }
-
-    Logger.info('Bot', 'Connecting to Discord...');
-    this.client.login(token);
   }
 }
