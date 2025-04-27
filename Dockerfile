@@ -83,6 +83,12 @@ COPY resequence.js /app/
 # Build TypeScript project
 RUN npm run build:render
 
+# IMPORTANT: Remove any database that might have been created in dist/data
+RUN rm -f /app/dist/data/betting.db
+
+# Create symlink to ensure application uses the mounted database
+RUN mkdir -p /app/dist/data && ln -sf /app/data/betting.db /app/dist/data/betting.db
+
 # Create backup scheduler script
 RUN echo '#!/bin/bash\nwhile true; do\n  echo "Running scheduled backup: $(date)"\n  node /app/dist/src/scripts/backup-db.js >> /app/logs/backup.log 2>&1\n  echo "Next backup in 24 hours. Sleeping."\n  sleep 86400\ndone' > /app/backup-scheduler.sh
 RUN chmod +x /app/backup-scheduler.sh
@@ -91,8 +97,12 @@ RUN chmod +x /app/backup-scheduler.sh
 RUN which google-chrome || echo "Default Chrome not found in PATH"
 RUN ls -la /usr/bin/google-chrome || echo "Chrome binary not found at expected location"
 
+# Create a simple test script to verify Puppeteer works
+RUN echo '#!/bin/bash\nnode -e "const puppeteer = require(\"puppeteer\"); (async () => { console.log(\"Testing Puppeteer...\"); try { const browser = await puppeteer.launch({headless: true, args: [\"--no-sandbox\", \"--disable-setuid-sandbox\"]}); const page = await browser.newPage(); console.log(\"Browser launched successfully!\"); await page.goto(\"https://example.com\"); console.log(\"Page loaded successfully!\"); const title = await page.title(); console.log(\"Page title:\", title); await browser.close(); console.log(\"Test completed successfully!\"); } catch (error) { console.error(\"Test failed:\", error); process.exit(1); } })()"' > /app/test-puppeteer.sh
+RUN chmod +x /app/test-puppeteer.sh
+
 # Create entrypoint script with precise Chrome configuration
-RUN echo '#!/bin/bash\n\n# Print database location info\necho "Database directory contents:"\nls -la /app/data\n\n# Start backup scheduler in background\nnohup /app/backup-scheduler.sh &\n\n# Set environment variables for Puppeteer\nexport PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false\nexport PUPPETEER_EXECUTABLE_PATH=$(which google-chrome)\n\n# Log Chrome location\necho "Using Chrome at: $PUPPETEER_EXECUTABLE_PATH"\n\n# Start main application with Puppeteer in no-sandbox mode\nNODE_OPTIONS=--no-warnings exec node dist/index.js' > /app/entrypoint.sh
+RUN echo '#!/bin/bash\n\n# Print database location info\necho "Database directory contents:"\nls -la /app/data\necho "Dist/data directory contents:"\nls -la /app/dist/data\n\n# Test Puppeteer\necho "Testing Puppeteer installation..."\n/app/test-puppeteer.sh\nif [ $? -ne 0 ]; then\n  echo "Puppeteer test failed!"\nelse\n  echo "Puppeteer test passed!"\nfi\n\n# Start backup scheduler in background\nnohup /app/backup-scheduler.sh &\n\n# Set environment variables for Puppeteer\nexport PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false\nexport PUPPETEER_EXECUTABLE_PATH=$(which google-chrome)\nexport DEBUG="puppeteer:*"\n\n# Log Chrome location\necho "Using Chrome at: $PUPPETEER_EXECUTABLE_PATH"\n\n# Start main application with Puppeteer in no-sandbox mode and verbose logging\nNODE_OPTIONS="--no-warnings --unhandled-rejections=strict" exec node dist/index.js 2>&1 | tee /app/logs/app.log' > /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Fix ownership of all files
@@ -106,12 +116,14 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 ENV PUPPETEER_SKIP_DOWNLOAD=false
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 ENV PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu"
+ENV DEBUG="puppeteer:*"
+ENV NODE_OPTIONS="--no-warnings --unhandled-rejections=strict"
 
 # Important: Define volume for persistent database storage
 # This should be mounted from host when running: docker run -v $(pwd)/data:/app/data
 VOLUME ["/app/data"]
 
-# Expose port (optional - only needed if you have an HTTP server)
+# Expose port for Discord bot
 EXPOSE 3000
 
 # Use entrypoint script instead of direct command
