@@ -16,8 +16,7 @@
     "lint": "eslint 'src/**/*.ts' 'index.ts' --fix",
     "postinstall": "npx puppeteer browsers install chrome-headless-shell",
     "install-chrome": "node src/scripts/install-chrome.js",
-    "render-setup": "node src/scripts/render-setup.js",
-    "fix-chrome": "node src/scripts/fix-chrome.js"
+    "render-setup": "node src/scripts/render-setup.js"
   },
   "dependencies": {
     "@discordjs/rest": "^2.4.3",

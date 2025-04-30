@@ -81,35 +81,11 @@ export class Aternos {
 
         // Set explicit executable path if provided in environment
         if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-          // Check if it's just our placeholder value from the docs
-          if (process.env.PUPPETEER_EXECUTABLE_PATH === '/the/path/from/logs') {
-            console.log(
-              'Detected placeholder path from documentation. Ignoring and using automatic discovery instead.'
-            );
-          } else {
-            console.log(
-              `Using Chrome executable from PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
-            );
-            launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-
-            // Verify the path exists before trying to use it
-            try {
-              const fs = await import('fs');
-              if (!fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
-                console.log(
-                  `WARNING: The specified Chrome path doesn't exist: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
-                );
-                console.log('Will fall back to automatic discovery');
-                delete launchOptions.executablePath;
-              }
-            } catch (e) {
-              console.log('Error checking Chrome executable path:', e);
-            }
-          }
-        }
-
-        // If no valid executable path was set, search for Chrome
-        if (!launchOptions.executablePath) {
+          console.log(
+            `Using Chrome executable from PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
+          );
+          launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+        } else {
           // Search for Chrome/Chromium in common locations
           try {
             const { execSync } = await import('child_process');
@@ -151,7 +127,6 @@ export class Aternos {
 
             if (!launchOptions.executablePath) {
               console.log('No Chrome executable found in standard locations');
-              console.log('Will attempt to launch without specifying executable path');
             }
           } catch (e) {
             console.log('Error searching for Chrome:', e);
@@ -210,19 +185,12 @@ export class Aternos {
       if (error instanceof Error) {
         if (
           error.message.includes('Could not find Chrome') ||
-          error.message.includes('Failed to launch browser') ||
-          error.message.includes('Browser was not found')
+          error.message.includes('Failed to launch browser')
         ) {
           console.error('\n=== CHROME BROWSER NOT FOUND ===');
           console.error('To fix this error, try:');
           console.error('1. Run: npm run render-setup');
-          console.error('2. Check your PUPPETEER_EXECUTABLE_PATH environment variable:');
-          console.error(
-            `   Current value: ${process.env.PUPPETEER_EXECUTABLE_PATH || '(not set)'}`
-          );
-          console.error(
-            '   If it\'s set to "/the/path/from/logs", that\'s just placeholder text from the docs!'
-          );
+          console.error('2. Set PUPPETEER_EXECUTABLE_PATH to a valid Chrome executable path');
           console.error('3. Check if Chrome is installed on the system and accessible');
           console.error('==========================================\n');
         }
