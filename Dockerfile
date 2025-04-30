@@ -1,17 +1,7 @@
-FROM ghcr.io/puppeteer/puppeteer:20-slim
+FROM ghcr.io/puppeteer/puppeteer:latest
 
 # Set working directory
 WORKDIR /app
-
-# Install build dependencies for better-sqlite3
-USER root
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-USER pptruser
 
 # Install dependencies
 COPY package*.json ./
