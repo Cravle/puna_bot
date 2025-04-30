@@ -1,17 +1,33 @@
 services:
   - type: web
     name: discord-betting-bot
-    runtime: docker
-    plan: standard # You need a paid plan for Docker
+    runtime: node
+    plan: free
     region: frankfurt
-    rootDir: .
-    # Note: dockerCommand is not needed as it's defined in the Dockerfile
+    buildCommand: npm install && chmod +x setup-chrome.sh && ./setup-chrome.sh && tsc
+    startCommand: npm start
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: NODE_VERSION
         value: 20.x
+      - key: NODE_ENV
+        value: production
+      - key: PUPPETEER_DOWNLOAD_PATH
+        value: /opt/render/.cache/puppeteer
+    buildFilter:
+      paths:
+        - src/**/*.ts
+        - index.ts
+        - tsconfig.json
+        - package.json
+        - package-lock.json
+        - .env.example
+        - render.yaml
+      ignoredPaths:
+        - node_modules/**
+        - data/**
+        - logs/**
+        - chrome-path.txt
     disk:
       name: data
-      mountPath: /app/data
+      mountPath: /opt/render/project/src/data
       sizeGB: 1

@@ -53,7 +53,7 @@ export class Aternos {
 
   async init(): Promise<void> {
     try {
-      // Simpler launch options for Docker environment (Chrome is pre-installed)
+      // Launch options with appropriate arguments
       const launchOptions: LaunchOptions = {
         headless: true,
         args: [
@@ -67,12 +67,34 @@ export class Aternos {
           '--no-zygote',
           '--single-process',
         ],
-        // Docker image has Chrome pre-installed, so we don't need to specify the path
       };
+
+      // Use PUPPETEER_EXECUTABLE_PATH if available (set by index.ts)
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        console.log(`Using Chrome path from environment: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      }
+      // If no executable path set, use system Chrome (for local dev)
+      else {
+        console.log('No Chrome path found in environment, using system default');
+      }
 
       console.log('Launching browser with options:', JSON.stringify(launchOptions));
 
-      this.browser = await puppeteerExtra.launch(launchOptions);
+      try {
+        this.browser = await puppeteerExtra.launch(launchOptions);
+      } catch (browserError) {
+        console.error('Failed to launch browser:', browserError);
+
+        // Try one more time with system Chrome if we were trying to use a specific path
+        if (launchOptions.executablePath) {
+          console.log('Trying again with system Chrome...');
+          delete launchOptions.executablePath;
+          this.browser = await puppeteerExtra.launch(launchOptions);
+        } else {
+          throw browserError;
+        }
+      }
 
       const context = this.browser.defaultBrowserContext();
       this.page = await context.newPage();
