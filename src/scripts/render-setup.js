@@ -86,7 +86,7 @@ try {
   }
 }
 
-// Check installation - OPTIMIZED VERSION
+// Check installation
 console.log('Checking installed browsers...');
 try {
   // List puppeteer browsers
@@ -98,58 +98,38 @@ try {
     console.log('Could not list puppeteer browsers:', e);
   }
   
-  // Check only specific directories where Chrome might be installed
-  console.log('Searching for Chrome/Chromium executables in common locations:');
-  const commonLocations = [
-    '/opt/render/.cache/puppeteer',
-    '/usr/bin',
-    '/usr/local/bin',
-    '/opt/google/chrome',
-    '/tmp/chrome'
-  ];
-  
-  let chromeLocations = [];
-  
-  for (const dir of commonLocations) {
-    try {
-      console.log(`Checking ${dir}...`);
-      // Use find with limits to specific directories
-      const findCmd = `find ${dir} -name "chrome" -o -name "chrome-headless-shell" -o -name "chromium-browser" 2>/dev/null | head -5`;
-      const locations = execSync(findCmd, { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-      
-      if (locations.length > 0) {
-        console.log(`Found in ${dir}:`);
-        locations.forEach(loc => console.log(`- ${loc}`));
-        chromeLocations.push(...locations);
-      }
-    } catch (e) {
-      console.log(`Could not search ${dir}: ${e.message}`);
-    }
-  }
-  
-  if (chromeLocations.length > 0) {
-    console.log('\nFound Chrome/Chromium executables:');
-    chromeLocations.forEach(location => {
-      console.log(`- ${location}`);
-      // Try to output version
-      try {
-        const version = execSync(`${location} --version`, { encoding: 'utf8', timeout: 3000 });
-        console.log(`  Version: ${version.trim()}`);
-      } catch (e) {
-        console.log(`  Could not get version`);
-      }
-    });
+  // Check if Chrome is installed anywhere in the system
+  try {
+    console.log('Searching for Chrome executables on system:');
+    const findChromeResults = execSync('find / -name "chrome" -o -name "chrome-headless-shell" -o -name "chromium-browser" 2>/dev/null', { encoding: 'utf8' });
+    const chromeLocations = findChromeResults.trim().split('\n').filter(Boolean);
     
-    // Suggest the first found path as PUPPETEER_EXECUTABLE_PATH
-    console.log(`\nSuggested environment variable: PUPPETEER_EXECUTABLE_PATH=${chromeLocations[0]}`);
-  } else {
-    console.log('No Chrome executables found in common locations');
+    if (chromeLocations.length > 0) {
+      console.log('Found Chrome/Chromium executables:');
+      chromeLocations.forEach(location => {
+        console.log(`- ${location}`);
+        // Try to output version
+        try {
+          const version = execSync(`${location} --version`, { encoding: 'utf8' });
+          console.log(`  Version: ${version.trim()}`);
+        } catch (e) {
+          console.log(`  Could not get version: ${e.message}`);
+        }
+      });
+      
+      // Suggest the first found path as PUPPETEER_EXECUTABLE_PATH
+      console.log(`\nSuggested environment variable: PUPPETEER_EXECUTABLE_PATH=${chromeLocations[0]}`);
+    } else {
+      console.log('No Chrome executables found on system');
+    }
+  } catch (e) {
+    console.log('Error while searching for Chrome:', e);
   }
   
   // Check what's in the cache directory now
   console.log(`\nContents of puppeteer cache directory (${renderCachePath}):`);
   try {
-    execSync(`find ${renderCachePath} -type f | sort | head -20`, { stdio: 'inherit' });
+    execSync(`find ${renderCachePath} -type f | sort`, { stdio: 'inherit' });
   } catch (e) {
     console.log('Could not list cache directory contents:', e);
   }
