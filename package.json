@@ -6,8 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "prebuild": "echo 'Skipping prebuild for regular build'",
-    "build": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node src/scripts/fix-chrome.cjs",
-    "build:render": "tsc",
+    "build": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node src/scripts/fix-chrome.js",
+    "build:render": "tsc && node src/scripts/fix-chrome.js",
     "start": "node dist/index.js",
     "dev": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && nodemon --watch 'src/**' --ext 'ts' --exec 'tsc && node dist/index.js'",
     "migrate": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/migrations/migrateJsonToSqlite.js",
@@ -18,7 +18,7 @@
     "postinstall": "npx puppeteer browsers install chrome-headless-shell",
     "install-chrome": "node src/scripts/install-chrome.js",
     "render-setup": "node src/scripts/render-setup.js",
-    "fix-chrome": "node src/scripts/fix-chrome.cjs"
+    "fix-chrome": "node src/scripts/fix-chrome.js"
   },
   "dependencies": {
     "@discordjs/rest": "^2.4.3",
