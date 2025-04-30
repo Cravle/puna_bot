@@ -11,7 +11,7 @@ const aternosServerId = process.env.ATERNOS_SERVER_ID;
 
 if (!aternosUsername || !aternosPassword || !aternosServerId) {
   console.error(
-    'Error: Missing ATERNOS_USERNAME, ATERNOS_PASSWORD, or ATERNOS_SERVER_ID environment variables.',
+    'Error: Missing ATERNOS_USERNAME, ATERNOS_PASSWORD, or ATERNOS_SERVER_ID environment variables.'
   );
   process.exit(1); // Exit if essential config is missing
 }

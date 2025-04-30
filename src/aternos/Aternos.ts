@@ -34,12 +34,6 @@ const INTERVAL = 10_000; // 10 seconds
 // const cookiesPath = path.join(__dirname, 'cookies.json');
 // function loadCookies(): Cookie[] { ... }
 
-// Add a type for server status
-export interface AternosStatus {
-  status: 'online' | 'offline' | 'starting' | 'loading' | 'error' | 'unknown';
-  timeLeft?: string | null; // Time string like '5:06' if online
-}
-
 export class Aternos {
   private browser: Browser | null = null;
   private page: Page | null = null;
@@ -227,169 +221,108 @@ export class Aternos {
     }
   }
 
-  /**
-   * Checks the current status of the server page without taking actions.
-   * Assumes the page is already navigated to the correct server page.
-   * @returns {Promise<AternosStatus>}
-   */
-  async checkServerStatus(): Promise<AternosStatus> {
-    if (!this.page) throw new Error('Page not initialized');
-    console.log('Checking current server status...');
-    try {
-      // Check for countdown timer (indicates online)
-      const countdownElement = await this.page.$('.end-countdown');
-      if (countdownElement) {
-        const timerTextElement = await countdownElement.$('.server-end-countdown');
-        const timeLeft = timerTextElement
-          ? await timerTextElement.evaluate(el => el.textContent)
-          : null;
-        console.log(`Status check: Online, Time left: ${timeLeft?.trim()}`);
-        return { status: 'online', timeLeft: timeLeft?.trim() };
-      }
-
-      // Check for other specific status elements (adjust selectors as needed)
-      const startingIndicator = await this.page.$('.statuslabel-label.starting');
-      if (startingIndicator) {
-        console.log('Status check: Starting');
-        return { status: 'starting' };
-      }
-
-      const loadingIndicator = await this.page.$('.statuslabel-label.loading');
-      if (loadingIndicator) {
-        console.log('Status check: Loading');
-        return { status: 'loading' };
-      }
-
-      const offlineIndicator = await this.page.$('.statuslabel-label.offline');
-      if (offlineIndicator) {
-        // Check if the #start button exists, implies offline and ready to start
-        const startButton = await this.page.$('#start');
-        if (startButton) {
-          console.log('Status check: Offline (ready to start)');
-          return { status: 'offline' };
-        }
-        console.log('Status check: Offline (cannot start)');
-        return { status: 'offline' }; // Or a different status if needed
-      }
-
-      // If none of the specific statuses are found
-      console.log('Status check: Unknown');
-      return { status: 'unknown' };
-    } catch (error) {
-      console.error('Error during server status check:', error);
-      return { status: 'error' };
-    }
-  }
-
-  // Modify startServer to return status on completion
-  async startServer(): Promise<AternosStatus> {
+  async startServer(): Promise<void> {
     if (!this.page) throw new Error('Page not initialized');
     console.log('Attempting to start server...');
-    let finalStatus: AternosStatus = { status: 'unknown' };
 
     try {
-      // First, check if it's already running
-      const initialStatus = await this.checkServerStatus();
-      if (
-        initialStatus.status === 'online' ||
-        initialStatus.status === 'starting' ||
-        initialStatus.status === 'loading'
-      ) {
-        console.log(`Server is already ${initialStatus.status}. No action needed.`);
-        return initialStatus;
-      }
-
-      // Ensure we are on the server page where the start button might be
-      // Optional: add navigation logic here if checkServerStatus doesn't guarantee page context
-
       // Wait for the start button to be potentially available
-      await this.page.waitForSelector('#start', { visible: true, timeout: 15000 }); // Increased timeout slightly
+      await this.page.waitForSelector('#start', { visible: true, timeout: 10000 });
       const startButton = await this.page.$('#start');
 
       if (startButton) {
         console.log('Start button found, clicking...');
         await startButton.click();
         console.log('Clicked start button. Waiting for server confirmation...');
-        finalStatus = await this.waitForServerToStart(); // Wait for confirmation
+        await this.waitForServerToStart(); // Wait for confirmation like 'Online' status
       } else {
         console.log('Start button not immediately found on this page.');
+        // Optionally add logic here if the button isn't on the expected page
+        // e.g., navigate back or throw error
         throw new Error('Start button not found on the current page.');
       }
     } catch (error) {
       console.error('Error clicking start button or during server start process:', error);
-      finalStatus = { status: 'error' };
-      throw error; // Re-throw after setting status
+      // Consider if navigating back is appropriate here
+      // await this.goToServerPage(YOUR_SERVER_ID); // Replace YOUR_SERVER_ID
+      throw error; // Re-throw
     }
-    return finalStatus;
   }
 
-  // Modify intervalCheckServerStatus to return status object
-  private async intervalCheckServerStatus(): Promise<AternosStatus> {
-    // Return type changed
+  private async intervalCheckServerStatus(): Promise<boolean> {
     if (!this.page) throw new Error('Page not initialized');
 
     this.counter++;
     console.log(`Checking server status (Attempt ${this.counter})...`);
 
     try {
-      const currentStatus = await this.checkServerStatus(); // Reuse the check logic
+      // Specifically look for the countdown timer element which appears when the server is running
+      const countdownElement = await this.page.$('.end-countdown');
 
-      if (currentStatus.status === 'online') {
-        return currentStatus; // Return the status object with time
+      if (countdownElement) {
+        // Server is running, find the timer text within the countdown element
+        const timerTextElement = await countdownElement.$('.server-end-countdown');
+        if (timerTextElement) {
+          const timeLeft = await timerTextElement.evaluate(el => el.textContent);
+          console.log(`Server is running. Time left: ${timeLeft?.trim()}`);
+        } else {
+          // Should not happen if .end-countdown exists, but good to log
+          console.log('Server is running (countdown element found, but timer text missing).');
+        }
+        return true; // Server started (or already running)
       }
-      // We could add checks for other statuses like 'starting' if needed here
-      // else if (currentStatus.status === 'starting') { ... }
+
+      // Optional: Check for other statuses like loading, offline etc. if needed
+      // const loadingIndicator = await this.page.$('.statuslabel-label.loading');
+      // if (loadingIndicator) console.log('Server is still loading...');
     } catch (error) {
       console.warn('Error checking server status element:', error);
+      // Don't stop the interval on temporary check errors, unless it's fatal
     }
 
     if (this.counter > 60) {
+      // Increased attempts (e.g., 60 * 10s = 10 minutes)
       console.log('Server did not reach running/countdown state within the expected time.');
-      return { status: 'error' }; // Indicate timeout as error
+      return true; // Stop waiting, treat as finished (failed)
     }
 
-    // Return unknown status to continue polling
-    return { status: 'unknown' };
+    return false; // Server not running yet, continue polling
   }
 
-  // Modify waitForServerToStart to return status object
-  private async waitForServerToStart(): Promise<AternosStatus> {
-    // Return type changed
+  private async waitForServerToStart(): Promise<void> {
     console.log('Waiting for server to confirm online status...');
     this.counter = 0;
 
     return new Promise((resolve, reject) => {
-      const cleanupAndResolve = (status: AternosStatus) => {
-        if (this.intervalFunc) clearInterval(this.intervalFunc);
-        this.intervalFunc = null;
-        resolve(status);
-      };
-      const cleanupAndReject = (err: Error) => {
-        if (this.intervalFunc) clearInterval(this.intervalFunc);
-        this.intervalFunc = null;
-        reject(err);
-      };
-
       this.intervalFunc = setInterval(async () => {
         try {
-          const currentStatus = await this.intervalCheckServerStatus();
-          // Resolve if online, or if an error status (like timeout) is returned by the check
-          if (currentStatus.status === 'online' || currentStatus.status === 'error') {
-            console.log(`waitForServerToStart resolving with status: ${currentStatus.status}`);
-            cleanupAndResolve(currentStatus);
+          const isStarted = await this.intervalCheckServerStatus();
+          if (isStarted) {
+            if (this.intervalFunc) clearInterval(this.intervalFunc);
+            this.intervalFunc = null; // Clear interval ID
+            if (this.counter > 60) {
+              // Check if it stopped due to timeout
+              reject(new Error('Server start timed out.'));
+            } else {
+              console.log('Server status confirmed as online/starting.');
+              resolve();
+            }
           }
         } catch (error) {
+          if (this.intervalFunc) clearInterval(this.intervalFunc);
+          this.intervalFunc = null;
           console.error('Error during server status check interval:', error);
-          cleanupAndReject(error instanceof Error ? error : new Error(String(error)));
+          reject(error);
         }
       }, INTERVAL);
 
       // Safety timeout for the whole waiting process
       const overallTimeout = setTimeout(() => {
         if (this.intervalFunc) {
-          // Check if interval is still running
+          clearInterval(this.intervalFunc);
+          this.intervalFunc = null;
           console.error('Overall timeout reached while waiting for server to start.');
-          cleanupAndReject(new Error('Overall timeout reached while waiting for server to start.'));
+          reject(new Error('Overall timeout reached while waiting for server to start.'));
         }
       }, TIMEOUT * 10); // e.g., 10 minutes total wait time
     });

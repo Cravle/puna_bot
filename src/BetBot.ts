@@ -32,8 +32,6 @@ import matchRepository from './database/repositories/MatchRepository.js';
 import eventRepository from './database/repositories/EventRepository.js';
 import userRepository from './database/repositories/UserRepository.js';
 import betRepository from './database/repositories/BetRepository.js';
-// Import Aternos class and status type
-import { Aternos, AternosStatus } from './aternos/Aternos.js';
 
 /**
  * Main Discord bot class that handles commands and integrates managers
@@ -44,8 +42,6 @@ export class BetBot {
   private matchManager: MatchManager;
   private eventManager: EventManager;
   private commands: Collection<string, any>;
-  // Add Aternos instance (optional - could be created on demand)
-  // private aternos: Aternos | null = null;
 
   constructor() {
     this.client = new Client({
@@ -592,19 +588,6 @@ export class BetBot {
             },
           ],
         },
-        // Add Aternos command
-        {
-          name: 'aternos',
-          description: 'Manage the Aternos Minecraft server',
-          options: [
-            {
-              name: 'start',
-              description: 'Checks status and starts the Aternos server if offline.',
-              type: ApplicationCommandOptionType.Subcommand,
-            },
-            // Future subcommands like 'status' could be added here
-          ],
-        },
       ];
 
       // Update commands for bot/guild
@@ -638,8 +621,6 @@ export class BetBot {
       this.commands.set('help', this.handleHelpCommand.bind(this));
       this.commands.set('flip', this.handleFlipCommand.bind(this));
       this.commands.set('random', this.handleRandomCommand.bind(this));
-      // Add Aternos command handler
-      this.commands.set('aternos', this.handleAternosCommand.bind(this));
 
       Logger.success('Bot', 'Successfully registered application commands.');
     } catch (error) {
@@ -2819,116 +2800,6 @@ Need more help? Contact the server administrator.
       // Match not found
       await interaction.reply({
         content: `❌ Match #${id} not found.`,
-        ephemeral: true,
-      });
-    }
-  }
-
-  /**
-   * Handle /aternos commands
-   * @param {ChatInputCommandInteraction} interaction - Discord interaction
-   */
-  private async handleAternosCommand(interaction: ChatInputCommandInteraction): Promise<void> {
-    const subCommand = interaction.options.getSubcommand();
-    const userId = interaction.user.id;
-    const username = interaction.user.username;
-
-    // Permission Check (Example: Admin only)
-    // if (!interaction.memberPermissions?.has('Administrator')) {
-    //   await interaction.reply({
-    //     content: '🚫 **Access Denied**: Only administrators can manage the Aternos server.',
-    //     ephemeral: true,
-    //   });
-    //   return;
-    // }
-
-    // Check if Aternos config is loaded (validated in index.ts)
-    const aternosUsername = process.env.ATERNOS_USERNAME;
-    const aternosPassword = process.env.ATERNOS_PASSWORD;
-    const aternosServerId = process.env.ATERNOS_SERVER_ID;
-    if (!aternosUsername || !aternosPassword || !aternosServerId) {
-      await interaction.reply({
-        content:
-          '❌ **Configuration Error**: Aternos credentials or Server ID are missing in the bot configuration.',
-        ephemeral: true,
-      });
-      return;
-    }
-
-    Logger.command(userId, username, `/aternos ${subCommand}`);
-
-    if (subCommand === 'start') {
-      await interaction.deferReply(); // Acknowledge interaction, operation takes time
-
-      const aternosInstance = new Aternos(); // Create new instance for each command
-      let finalStatus: AternosStatus | null = null;
-      let errorMessage = 'An unexpected error occurred.';
-
-      try {
-        Logger.info('AternosCmd', 'Initializing Aternos...');
-        await aternosInstance.init();
-
-        Logger.info('AternosCmd', 'Logging in...');
-        await aternosInstance.login(aternosUsername, aternosPassword);
-
-        Logger.info('AternosCmd', 'Navigating to server page...');
-        await aternosInstance.goToServerPage(aternosServerId);
-
-        // Check status before starting
-        const currentStatus = await aternosInstance.checkServerStatus();
-        if (
-          currentStatus.status === 'online' ||
-          currentStatus.status === 'starting' ||
-          currentStatus.status === 'loading'
-        ) {
-          await interaction.editReply(
-            `✅ Server is already **${currentStatus.status}**.${
-              currentStatus.timeLeft ? ` Time left: **${currentStatus.timeLeft}**` : ''
-            }`,
-          );
-        } else if (currentStatus.status === 'offline') {
-          // Attempt to start
-          await interaction.editReply('⏳ Server is offline. Attempting to start...');
-          Logger.info('AternosCmd', 'Server offline, attempting start...');
-          finalStatus = await aternosInstance.startServer();
-
-          // Announce result based on status from startServer
-          if (finalStatus.status === 'online') {
-            await interaction.editReply(
-              `✅ Server started successfully! Time left: **${finalStatus.timeLeft ?? 'N/A'}**`,
-            );
-          } else if (finalStatus.status === 'error') {
-            errorMessage =
-              'Error occurred while waiting for server to start (Timeout?). Check logs.';
-            await interaction.editReply(`❌ **Error**: ${errorMessage}`);
-          } else {
-            // Should not happen if startServer logic is correct
-            errorMessage = `Unexpected status after start attempt: ${finalStatus.status}`;
-            await interaction.editReply(`⚠️ **Warning**: ${errorMessage}`);
-          }
-        } else {
-          // Handle unknown/error status from initial check
-          errorMessage = `Cannot start server. Current status: **${currentStatus.status}**`;
-          await interaction.editReply(`❌ **Error**: ${errorMessage}`);
-        }
-      } catch (error) {
-        Logger.error('AternosCmd', `Error during /aternos start: ${error}`);
-        errorMessage = error instanceof Error ? error.message : String(error);
-        // Ensure reply is edited even on error
-        if (interaction.deferred || interaction.replied) {
-          await interaction
-            .editReply(`❌ **Error**: Failed to start Aternos server. ${errorMessage}`)
-            .catch(e => Logger.error('AternosCmd', 'Failed to edit reply on error', e));
-        }
-      } finally {
-        Logger.info('AternosCmd', 'Closing Aternos browser...');
-        await aternosInstance.close(); // Ensure browser is closed
-        Logger.info('AternosCmd', 'Aternos browser closed.');
-      }
-    } else {
-      // Handle unknown subcommands if any are added later
-      await interaction.reply({
-        content: '❌ Unknown Aternos command.',
         ephemeral: true,
       });
     }
