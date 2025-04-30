@@ -13,12 +13,10 @@ RUN rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/goo
     g++ \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+USER pptruser
 
-# Keep using root user for all file operations
-# Copy package files
+# Install dependencies
 COPY package*.json ./
-
-# Install dependencies as root
 RUN npm install
 
 # Copy project files
@@ -33,12 +31,6 @@ RUN mkdir -p /app/logs /app/data/backups
 # Create backup scheduler script
 RUN echo '#!/bin/bash\nwhile true; do\n  echo "Running scheduled backup: $(date)"\n  node /app/dist/src/scripts/backup-db.js >> /app/logs/backup.log 2>&1\n  echo "Next backup in 24 hours. Sleeping."\n  sleep 86400\ndone' > /app/backup-scheduler.sh
 RUN chmod +x /app/backup-scheduler.sh
-
-# Fix ownership of all files
-RUN chown -R pptruser:pptruser /app
-
-# Switch to pptruser for running the application
-USER pptruser
 
 # Expose port (optional - only needed if you have an HTTP server)
 EXPOSE 3000
