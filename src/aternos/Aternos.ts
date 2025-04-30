@@ -79,29 +79,8 @@ export class Aternos {
       if (isRenderPlatform) {
         console.log('Detected Render.com platform, using Render-specific configuration...');
 
-        // First check if we have a chrome-path.txt file (created by fix-chrome.js)
-        try {
-          const fs = await import('fs');
-          const pathModule = await import('path');
-          const chromePath = pathModule.resolve('./chrome-path.txt');
-
-          if (fs.existsSync(chromePath)) {
-            const executablePath = fs.readFileSync(chromePath, 'utf8').trim();
-            if (executablePath && fs.existsSync(executablePath)) {
-              console.log(`Using Chrome executable from chrome-path.txt: ${executablePath}`);
-              launchOptions.executablePath = executablePath;
-            } else {
-              console.log(`Chrome path found in chrome-path.txt (${executablePath}) is invalid.`);
-            }
-          } else {
-            console.log('No chrome-path.txt file found, checking environment variable.');
-          }
-        } catch (e) {
-          console.log('Error reading chrome-path.txt:', e);
-        }
-
-        // If no valid path from file, check environment variable
-        if (!launchOptions.executablePath && process.env.PUPPETEER_EXECUTABLE_PATH) {
+        // Set explicit executable path if provided in environment
+        if (process.env.PUPPETEER_EXECUTABLE_PATH) {
           // Check if it's just our placeholder value from the docs
           if (process.env.PUPPETEER_EXECUTABLE_PATH === '/the/path/from/logs') {
             console.log(
@@ -111,17 +90,17 @@ export class Aternos {
             console.log(
               `Using Chrome executable from PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
             );
+            launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
 
             // Verify the path exists before trying to use it
             try {
               const fs = await import('fs');
-              if (fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
-                launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-              } else {
+              if (!fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
                 console.log(
                   `WARNING: The specified Chrome path doesn't exist: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
                 );
                 console.log('Will fall back to automatic discovery');
+                delete launchOptions.executablePath;
               }
             } catch (e) {
               console.log('Error checking Chrome executable path:', e);
@@ -181,7 +160,10 @@ export class Aternos {
 
         // On Render, set specific cache location
         const renderCachePath = '/opt/render/.cache/puppeteer';
-        console.log(`Using Puppeteer cache path: ${renderCachePath}`);
+        process.env.PUPPETEER_CACHE_DIR = renderCachePath;
+
+        // Log the actual cache path being used
+        console.log(`Using Puppeteer cache path: ${process.env.PUPPETEER_CACHE_DIR}`);
 
         // Try to list what's in the cache directory
         try {
@@ -233,13 +215,15 @@ export class Aternos {
         ) {
           console.error('\n=== CHROME BROWSER NOT FOUND ===');
           console.error('To fix this error, try:');
-          console.error('1. Make sure the prebuild script ran successfully');
+          console.error('1. Run: npm run render-setup');
+          console.error('2. Check your PUPPETEER_EXECUTABLE_PATH environment variable:');
           console.error(
-            `2. Check your PUPPETEER_EXECUTABLE_PATH environment variable: ${
-              process.env.PUPPETEER_EXECUTABLE_PATH || '(not set)'
-            }`
+            `   Current value: ${process.env.PUPPETEER_EXECUTABLE_PATH || '(not set)'}`
           );
-          console.error('3. Check if Chrome is installed and the path is correct');
+          console.error(
+            '   If it\'s set to "/the/path/from/logs", that\'s just placeholder text from the docs!'
+          );
+          console.error('3. Check if Chrome is installed on the system and accessible');
           console.error('==========================================\n');
         }
       }
