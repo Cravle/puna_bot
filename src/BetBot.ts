@@ -1741,10 +1741,20 @@ Congratulations to all winners! Your bets have been paid out at 2x.
       });
     } catch (error) {
       Logger.error('Leaderboard', `Error showing leaderboard: ${error}`);
-      await interaction.reply({
-        content: '❌ **Error**: There was a problem getting the leaderboard data.',
-        ephemeral: true,
-      });
+      // Check if we already replied or deferred before sending an error message
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: '❌ **Error**: There was a problem getting the leaderboard data.',
+          ephemeral: true,
+        });
+      } else {
+        // If we already replied/deferred, use followup for the error message
+        // Use ephemeral here too so only the user sees the error
+        await interaction.followUp({
+          content: '❌ **Error**: There was a problem getting the leaderboard data.',
+          ephemeral: true,
+        });
+      }
     }
   }
 
