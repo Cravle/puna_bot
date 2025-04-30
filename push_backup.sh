@@ -66,8 +66,11 @@ fi
 
 # --- Pull latest changes ---
 echo "Pulling latest changes for '$BACKUP_BRANCH'..."
-# Use GIT_SSH_COMMAND for pull
-GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git pull origin $BACKUP_BRANCH || echo "First backup, no remote changes yet."
+# Use GIT_SSH_COMMAND for pull and specify merge strategy
+GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git pull --ff-only origin $BACKUP_BRANCH || {
+  echo "Cannot fast-forward. Trying merge strategy..."
+  GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git pull --strategy=recursive --strategy-option=theirs origin $BACKUP_BRANCH || echo "First backup, no remote changes yet."
+}
 
 # --- Add and Commit the Database ---
 echo "Adding database file '$DB_FILE'..."
