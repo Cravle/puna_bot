@@ -69,7 +69,8 @@ echo "Pulling latest changes for '$BACKUP_BRANCH'..."
 # Use GIT_SSH_COMMAND for pull and specify merge strategy
 GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git pull --ff-only origin $BACKUP_BRANCH || {
   echo "Cannot fast-forward. Trying merge strategy..."
-  GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git pull --merge --strategy=recursive --strategy-option=theirs origin $BACKUP_BRANCH || echo "First backup, no remote changes yet."
+  # Use correct options from git pull help
+  GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git -c pull.rebase=false pull --strategy=recursive --strategy-option=theirs origin $BACKUP_BRANCH || echo "First backup, no remote changes yet."
 }
 
 # --- Add and Commit the Database ---
