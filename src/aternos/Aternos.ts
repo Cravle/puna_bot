@@ -80,21 +80,7 @@ export class Aternos {
       }
 
       console.log('Launching browser with options:', JSON.stringify(launchOptions));
-
-      try {
-        this.browser = await puppeteerExtra.launch(launchOptions);
-      } catch (browserError) {
-        console.error('Failed to launch browser:', browserError);
-
-        // Try one more time with system Chrome if we were trying to use a specific path
-        if (launchOptions.executablePath) {
-          console.log('Trying again with system Chrome...');
-          delete launchOptions.executablePath;
-          this.browser = await puppeteerExtra.launch(launchOptions);
-        } else {
-          throw browserError;
-        }
-      }
+      this.browser = await puppeteerExtra.launch(launchOptions);
 
       const context = this.browser.defaultBrowserContext();
       this.page = await context.newPage();
@@ -129,11 +115,14 @@ export class Aternos {
           error.message.includes('at the configured path')
         ) {
           console.error('\n=== CHROME BROWSER NOT FOUND ===');
-          console.error('This is likely due to restrictions in the free Render.com plan.');
-          console.error('Options to fix this:');
-          console.error('1. Run the bot locally instead of on Render');
-          console.error('2. Upgrade to a paid Render plan with full system access');
-          console.error('3. Use a different hosting service that supports Chrome');
+          console.error('To fix this error:');
+          console.error('1. Make sure the prebuild script ran successfully');
+          console.error(
+            '2. Remove the PUPPETEER_EXECUTABLE_PATH environment variable if it\'s set to "/the/path/from/logs"'
+          );
+          console.error(
+            '3. Check the build logs for the correct Chrome path and set it as PUPPETEER_EXECUTABLE_PATH'
+          );
           console.error('==========================================\n');
         }
       }
