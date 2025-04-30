@@ -11,7 +11,8 @@ const Logger = {
   success: (tag, message) => console.log(`[SUCCESS] [${tag}] ${message}`)
 };
 
-// Get project root directory path (CommonJS provides __dirname automatically)
+// Get directory paths
+const __dirname = path.dirname(require.main.filename);
 const projectRoot = path.resolve(__dirname, '../../');
 
 async function installChrome() {
