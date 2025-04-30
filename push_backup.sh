@@ -65,9 +65,9 @@ else
 fi
 
 # --- Pull latest changes ---
-# We will use --force push, so pulling isn't strictly necessary and avoids merge conflicts
-# echo "Pulling latest changes for '$BACKUP_BRANCH'..."
-# GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git pull origin $BACKUP_BRANCH || echo "First backup, no remote changes yet."
+echo "Pulling latest changes for '$BACKUP_BRANCH'..."
+# Use GIT_SSH_COMMAND for pull
+GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git pull origin $BACKUP_BRANCH || echo "First backup, no remote changes yet."
 
 # --- Add and Commit the Database ---
 echo "Adding database file '$DB_FILE'..."
@@ -79,9 +79,9 @@ else
   echo "Committing changes..."
   git commit -m "$COMMIT_MESSAGE"
 
-  echo "Force pushing changes to origin/$BACKUP_BRANCH..."
-  # Use GIT_SSH_COMMAND for push and add --force
-  GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git push --force origin $BACKUP_BRANCH
+  echo "Pushing changes to origin/$BACKUP_BRANCH..."
+  # Use GIT_SSH_COMMAND for push
+  GIT_SSH_COMMAND="$GIT_SSH_COMMAND_OPTS" git push origin $BACKUP_BRANCH
   echo "Database backup pushed successfully."
 fi
 
