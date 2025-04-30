@@ -1,6 +1,7 @@
 // Main entry point for the Discord Betting Bot
 import { BetBot } from './src/BetBot.js';
 import { Logger } from './src/utils/Logger.js';
+// Add Aternos import
 import { Aternos } from './src/aternos/Aternos.js';
 import dotenv from 'dotenv';
 import fs from 'fs';
@@ -27,35 +28,65 @@ async function ensureChromeInstalled() {
       Logger.error('Startup', `Failed to create cache directory: ${e}`);
     }
 
-    // Install Chrome using Puppeteer's browser installer
+    // Check if we already have chrome-path.txt and it points to a real file
+    let chromePath = '';
+    let chromeExists = false;
+
     try {
-      Logger.info('Startup', 'Installing Chrome headless shell...');
-      execSync('npm explore puppeteer -- npm run postinstall', { stdio: 'inherit' });
-      execSync('npx puppeteer browsers install chrome-headless-shell', { stdio: 'inherit' });
-      Logger.info('Startup', 'Chrome installed successfully!');
-
-      // Find the Chrome path
-      const chromeInstallDir = '/opt/render/.cache/puppeteer/chrome-headless-shell';
-      if (fs.existsSync(chromeInstallDir)) {
-        // Use find to locate the chrome-headless-shell binary
-        const findCmd = `find ${chromeInstallDir} -name "chrome-headless-shell" -type f | head -1`;
-        const chromePath = execSync(findCmd, { encoding: 'utf8' }).trim();
-
-        if (chromePath && fs.existsSync(chromePath)) {
-          // Make it executable
-          execSync(`chmod +x "${chromePath}"`);
-
-          // Save the path to environment variable
-          process.env.PUPPETEER_EXECUTABLE_PATH = chromePath;
-
-          // Also save to file for persistence
-          fs.writeFileSync('./chrome-path.txt', chromePath);
-          Logger.info('Startup', `Chrome path saved: ${chromePath}`);
-          return true;
+      if (fs.existsSync('./chrome-path.txt')) {
+        chromePath = fs.readFileSync('./chrome-path.txt', 'utf8').trim();
+        if (fs.existsSync(chromePath)) {
+          Logger.info('Startup', `Found valid Chrome at: ${chromePath}`);
+          chromeExists = true;
+        } else {
+          Logger.warn('Startup', `Chrome path in chrome-path.txt doesn't exist: ${chromePath}`);
         }
       }
-    } catch (installError) {
-      Logger.error('Startup', `Failed to install Chrome: ${installError}`);
+    } catch (e) {
+      Logger.error('Startup', `Error checking chrome-path.txt: ${e}`);
+    }
+
+    // If Chrome doesn't exist yet, install it
+    if (!chromeExists) {
+      Logger.info('Startup', 'Installing Chrome...');
+
+      try {
+        // Install Chrome using Puppeteer's browser installer
+        execSync('npx puppeteer browsers install chrome-headless-shell', { stdio: 'inherit' });
+        Logger.info('Startup', 'Chrome installed successfully!');
+
+        // Find the installed Chrome
+        try {
+          const chromeInstallDir = '/opt/render/.cache/puppeteer/chrome-headless-shell';
+          if (fs.existsSync(chromeInstallDir)) {
+            // Recursively find chrome-headless-shell executable
+            const findCmd = `find ${chromeInstallDir} -name "chrome-headless-shell" -type f | head -1`;
+            const foundChromePath = execSync(findCmd, { encoding: 'utf8' }).trim();
+
+            if (foundChromePath && fs.existsSync(foundChromePath)) {
+              chromePath = foundChromePath;
+              fs.writeFileSync('./chrome-path.txt', chromePath);
+              Logger.info('Startup', `Chrome path saved: ${chromePath}`);
+              chromeExists = true;
+            }
+          }
+        } catch (findError) {
+          Logger.error('Startup', `Failed to find Chrome after installation: ${findError}`);
+        }
+      } catch (installError) {
+        Logger.error('Startup', `Failed to install Chrome: ${installError}`);
+      }
+    }
+
+    if (chromeExists) {
+      // Make sure Chrome is executable
+      try {
+        execSync(`chmod +x "${chromePath}"`);
+        Logger.info('Startup', 'Chrome is ready to use!');
+        return true;
+      } catch (e) {
+        Logger.error('Startup', `Failed to make Chrome executable: ${e}`);
+      }
     }
 
     Logger.warn(
