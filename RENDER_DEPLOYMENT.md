@@ -1,6 +1,6 @@
-# Deploying to Render.com (Free Plan)
+# Deploying to Render.com
 
-This guide explains how to deploy the Discord Betting Bot to Render.com's free tier Web Service without SSH access.
+This guide explains how to deploy the Discord Betting Bot to Render.com's free tier Web Service.
 
 ## Setup Instructions
 
@@ -39,77 +39,33 @@ ATERNOS_SERVER_ID=your_aternos_server_id
 
 - **Memory**: Set to at least 512MB (required for Chrome to run properly)
 
-## Chrome Installation for Free Plan
+## Troubleshooting
 
-Since the free plan doesn't offer SSH access, we've adapted the solution:
+### Chrome Installation Issues
 
-1. The `render-setup.js` script now runs automatically during the build process.
-2. This script will:
-   - Create necessary directories
-   - Install Chrome using multiple methods
-   - Print diagnostic information in the build logs
+If you see Chrome installation errors:
 
-### Getting Chrome Path from Build Logs
+1. SSH into your Render instance through the dashboard
+2. Run the following commands:
 
-After deployment, you need to check the build logs to find Chrome's executable path:
-
-1. Go to your web service in the Render dashboard
-2. Click the "Events" tab
-3. Find the most recent "Build started" event and click "View Build Log"
-4. Look for lines mentioning "Found Chrome executable" or "Found Chrome/Chromium executables"
-5. Copy the full path (e.g., `/opt/render/.cache/puppeteer/chrome/chrome`)
-
-### Setting PUPPETEER_EXECUTABLE_PATH
-
-Once you have the path:
-
-1. Go to the "Environment" tab in your Render dashboard
-2. Add a new environment variable:
+   ```bash
+   mkdir -p /opt/render/.cache/puppeteer
+   npm run render-setup
    ```
-   PUPPETEER_EXECUTABLE_PATH=/the/path/from/logs
+
+3. If Chrome is still not found, you may need to manually set the environment variable to the correct location:
    ```
-3. Click "Save Changes"
-4. Deploy again by clicking "Manual Deploy" > "Deploy latest commit"
+   PUPPETEER_EXECUTABLE_PATH=/opt/render/.cache/puppeteer/chrome-headless-shell/chrome-headless-shell-linux-<version>/chrome-headless-shell
+   ```
+   Replace `<version>` with the actual version from the filesystem.
 
-## Troubleshooting Without SSH
+### Memory Issues
 
-Without SSH access, troubleshooting relies heavily on the logs:
+If you're experiencing out-of-memory errors, try:
 
-### Common Issues and Solutions
-
-1. **"Could not find Chrome" error**:
-
-   - Check the build logs for found Chrome paths
-   - Add the correct PUPPETEER_EXECUTABLE_PATH environment variable
-   - Deploy again
-
-2. **Build fails during Chrome installation**:
-
-   - The build might time out on the free plan when installing Chrome
-   - Try deploying again - sometimes it works on a second attempt
-   - If it consistently fails, you might need to upgrade to a paid plan
-
-3. **Memory errors during runtime**:
-   - Chrome is memory-intensive and may exceed the free plan's limits
-   - Try running with fewer Chrome tabs/instances
-   - Consider upgrading to a paid plan with more memory
+1. Increasing memory allocation (if possible on your plan)
+2. Adding more aggressive Chrome startup flags in your `src/aternos/Aternos.ts` file
 
 ## Debugging
 
-Since you don't have SSH access, use the logs for debugging:
-
-1. **Build Logs**: Found under "Events" > "View Build Log"
-2. **Runtime Logs**: Found under the "Logs" tab
-3. **Metrics**: Check CPU and memory usage under the "Metrics" tab
-
-The runtime logs will show any errors occurring when the bot tries to use Chrome, which can help pinpoint issues with the browser installation or configuration.
-
-## Deployment Checklist
-
-- [ ] Code pushed to GitHub repository
-- [ ] Render.com service connected to repository
-- [ ] Environment variables set correctly
-- [ ] Build and deployment successful
-- [ ] Chrome installed and path configured if needed
-- [ ] Bot connects to Discord successfully
-- [ ] Aternos commands working properly
+Enable Render logs to see detailed output for troubleshooting.

@@ -79,75 +79,20 @@ export class Aternos {
       if (isRenderPlatform) {
         console.log('Detected Render.com platform, using Render-specific configuration...');
 
-        // Set explicit executable path if provided in environment
-        if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-          console.log(
-            `Using Chrome executable from PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`
-          );
-          launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-        } else {
-          // Search for Chrome/Chromium in common locations
-          try {
-            const { execSync } = await import('child_process');
-            console.log('Searching for Chrome/Chromium executable...');
-
-            // Try multiple potential locations
-            const potentialPaths = [
-              // Standard Puppeteer cache locations
-              '/opt/render/.cache/puppeteer/chrome-headless-shell/chrome-headless-shell-linux-*/chrome-headless-shell',
-              // System installed Chrome/Chromium
-              '/usr/bin/chromium-browser',
-              '/usr/bin/chromium',
-              '/usr/bin/google-chrome',
-              // Manual install locations
-              '/opt/render/.cache/puppeteer/chrome/chrome',
-            ];
-
-            for (const pattern of potentialPaths) {
-              try {
-                // Use find with wildcard patterns
-                const findCmd = `find ${
-                  pattern.includes('*')
-                    ? pattern.substring(0, pattern.lastIndexOf('/'))
-                    : path.dirname(pattern)
-                } -name "${path.basename(pattern)}" 2>/dev/null | head -1`;
-
-                console.log(`Searching with: ${findCmd}`);
-                const foundPath = execSync(findCmd, { encoding: 'utf8' }).trim();
-
-                if (foundPath) {
-                  console.log(`Found Chrome executable at: ${foundPath}`);
-                  launchOptions.executablePath = foundPath;
-                  break;
-                }
-              } catch (e) {
-                // Continue to next pattern
-              }
-            }
-
-            if (!launchOptions.executablePath) {
-              console.log('No Chrome executable found in standard locations');
-            }
-          } catch (e) {
-            console.log('Error searching for Chrome:', e);
-          }
-        }
-
         // On Render, set specific cache location
         const renderCachePath = '/opt/render/.cache/puppeteer';
         process.env.PUPPETEER_CACHE_DIR = renderCachePath;
 
         // Log the actual cache path being used
-        console.log(`Using Puppeteer cache path: ${process.env.PUPPETEER_CACHE_DIR}`);
+        console.log(
+          `Using Puppeteer cache path: ${process.env.PUPPETEER_CACHE_DIR || renderCachePath}`
+        );
 
         // Try to list what's in the cache directory
         try {
           const { execSync } = await import('child_process');
           console.log('Checking cache directory contents:');
-          const lsOutput = execSync(
-            `ls -la ${renderCachePath} 2>/dev/null || echo "Directory not found or empty"`,
-            { encoding: 'utf8' }
-          );
+          const lsOutput = execSync(`ls -la ${renderCachePath}`, { encoding: 'utf8' });
           console.log(lsOutput);
         } catch (e) {
           console.log('Could not list cache directory:', e);
@@ -188,10 +133,12 @@ export class Aternos {
           error.message.includes('Failed to launch browser')
         ) {
           console.error('\n=== CHROME BROWSER NOT FOUND ===');
-          console.error('To fix this error, try:');
-          console.error('1. Run: npm run render-setup');
-          console.error('2. Set PUPPETEER_EXECUTABLE_PATH to a valid Chrome executable path');
-          console.error('3. Check if Chrome is installed on the system and accessible');
+          console.error(
+            'To fix this error, run: npx puppeteer browsers install chrome-headless-shell'
+          );
+          console.error('If running on Render.com, add this to your environment variables:');
+          console.error('PUPPETEER_CACHE_DIR=/opt/render/.cache/puppeteer');
+          console.error('And ensure the service has sufficient memory allocated (at least 512MB)');
           console.error('==========================================\n');
         }
       }

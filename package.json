@@ -5,7 +5,6 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "prebuild": "node src/scripts/render-setup.js",
     "build": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc",
     "start": "node dist/index.js",
     "dev": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && nodemon --watch 'src/**' --ext 'ts' --exec 'tsc && node dist/index.js'",
@@ -14,7 +13,7 @@
     "sync-users": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/syncAllUsers.js",
     "update-schema": "eslint 'src/**/*.ts' 'index.ts' --fix && tsc && node dist/src/scripts/updateSchema.js",
     "lint": "eslint 'src/**/*.ts' 'index.ts' --fix",
-    "postinstall": "npx puppeteer browsers install chrome-headless-shell",
+    "postinstall": "npx puppeteer browsers install chrome-headless-shell && node src/scripts/render-setup.js",
     "install-chrome": "node src/scripts/install-chrome.js",
     "render-setup": "node src/scripts/render-setup.js"
   },
