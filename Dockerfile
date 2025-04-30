@@ -3,6 +3,9 @@ FROM ghcr.io/puppeteer/puppeteer:latest
 # Set working directory
 WORKDIR /app
 
+# Install cron and dependencies
+RUN apt-get update && apt-get install -y cron && apt-get clean
+
 # Install dependencies
 COPY package*.json ./
 RUN npm install
@@ -13,15 +16,16 @@ COPY . .
 # Build TypeScript project
 RUN npm run build:render
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/data/backups
+# Setup cron job for daily backups
+RUN echo "0 0 * * * cd /app && node dist/src/scripts/backup-db.js >> /app/logs/backup.log 2>&1" > /etc/cron.d/backup-cron
+RUN chmod 0644 /etc/cron.d/backup-cron
+RUN crontab /etc/cron.d/backup-cron
 
-# Create backup scheduler script
-RUN echo '#!/bin/bash\nwhile true; do\n  echo "Running scheduled backup: $(date)"\n  node /app/dist/src/scripts/backup-db.js >> /app/logs/backup.log 2>&1\n  echo "Next backup in 24 hours. Sleeping."\n  sleep 86400\ndone' > /app/backup-scheduler.sh
-RUN chmod +x /app/backup-scheduler.sh
+# Create log directory
+RUN mkdir -p /app/logs
 
 # Expose port (optional - only needed if you have an HTTP server)
 EXPOSE 3000
 
-# Start dbus (required for Chrome), backup scheduler in background, and then your application
-CMD service dbus start && (nohup /app/backup-scheduler.sh &) && node dist/index.js 
+# Start cron service, dbus (required for Chrome) and then your application
+CMD service cron start && service dbus start && node dist/index.js 
