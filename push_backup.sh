@@ -41,9 +41,8 @@ fi
 
 # --- Git Configuration ---
 # Set remote URL to use SSH, fetched from environment variable
-# We will ensure origin exists and set the URL later
-# echo "Setting remote origin URL to SSH: $GIT_SSH_URL"
-# git remote set-url origin "$GIT_SSH_URL"
+echo "Setting remote origin URL to SSH: $GIT_SSH_URL"
+git remote set-url origin "$GIT_SSH_URL"
 
 # Optional: Configure git user (Render might do this automatically)
 # git config --global user.name "Render CI"
@@ -52,19 +51,18 @@ fi
 
 echo "Starting database backup process..."
 
-# --- Git Setup: Ensure Remote Origin is Correctly Configured --- 
+# --- Git Setup (Render environment doesn't have .git folder) ---
+if [ ! -d ".git" ]; then
+  echo "Initializing new git repository..."
+  git init
 
-# Check if remote 'origin' exists
-if git remote | grep -q '^origin$'; then
-  echo "Remote 'origin' found. Ensuring it uses the correct SSH URL..."
-  git remote set-url origin "$GIT_SSH_URL"
-else
-  echo "Remote 'origin' not found. Adding it..."
+  echo "Setting remote origin..."
   git remote add origin "$GIT_SSH_URL"
-fi
 
-# Ensure we have the latest refs from the remote
-# git fetch origin
+  echo "Setting git user config..."
+  git config user.name "Render CI"
+  git config user.email "ci@render.com"
+fi
 
 # --- Fetch backup branch ---
 echo "Fetching backup branch..."
