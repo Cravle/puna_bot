@@ -11,32 +11,6 @@ function updateSchema() {
     // Start a transaction
     connection.exec('BEGIN TRANSACTION');
 
-    // --- Add aternos_cookies table ---
-    const aternosTableExists = connection
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?")
-      .get('aternos_cookies');
-
-    if (!aternosTableExists) {
-      Logger.info('Migration', 'Creating aternos_cookies table');
-      connection.exec(`
-        CREATE TABLE aternos_cookies (
-          id INTEGER PRIMARY KEY DEFAULT 1, -- Use a fixed ID for the single row
-          cookies_json TEXT NOT NULL,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      // Optionally, add a trigger to update updated_at automatically on update
-      connection.exec(`
-         CREATE TRIGGER update_aternos_cookies_updated_at
-         AFTER UPDATE ON aternos_cookies
-         FOR EACH ROW
-         BEGIN
-           UPDATE aternos_cookies SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-         END;
-       `);
-    }
-    // --- End aternos_cookies table ---
-
     // Check if match_type column exists in matches table
     const matchTypeExists = connection
       .prepare('PRAGMA table_info(matches)')

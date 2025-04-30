@@ -19,20 +19,16 @@
     "better-sqlite3": "^8.4.0",
     "discord-api-types": "^0.38.1",
     "discord.js": "^14.11.0",
-    "dotenv": "^16.5.0",
+    "dotenv": "^16.0.3",
     "sqlite3": "^5.1.6"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.2",
-    "@types/puppeteer": "^7.0.4",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "eslint": "^8.57.1",
     "nodemon": "^2.0.22",
-    "puppeteer": "^24.4.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },

@@ -108,29 +108,29 @@ export class BetBot {
 
         // Handle different button actions
         switch (action) {
-        case 'flip_again':
-          await this.handleFlipAgainButton(interaction);
-          break;
-        case 'random_again':
-          await this.handleRandomAgainButton(interaction, params);
-          break;
-        case 'bet_match':
-          await this.handleBetMatchButton(interaction, params);
-          break;
-        case 'bet_event':
-          await this.handleBetEventButton(interaction, params);
-          break;
-        case 'show_match_bets':
-          await this.handleShowMatchBetsButton(interaction, params);
-          break;
-        case 'show_event_bets':
-          await this.handleShowEventBetsButton(interaction, params);
-          break;
-        default:
-          await interaction.reply({
-            content: '❌ Unknown button action',
-            ephemeral: true,
-          });
+          case 'flip_again':
+            await this.handleFlipAgainButton(interaction);
+            break;
+          case 'random_again':
+            await this.handleRandomAgainButton(interaction, params);
+            break;
+          case 'bet_match':
+            await this.handleBetMatchButton(interaction, params);
+            break;
+          case 'bet_event':
+            await this.handleBetEventButton(interaction, params);
+            break;
+          case 'show_match_bets':
+            await this.handleShowMatchBetsButton(interaction, params);
+            break;
+          case 'show_event_bets':
+            await this.handleShowEventBetsButton(interaction, params);
+            break;
+          default:
+            await interaction.reply({
+              content: '❌ Unknown button action',
+              ephemeral: true,
+            });
         }
       } catch (error) {
         Logger.error('Button', `Error handling button interaction: ${error}`);
@@ -152,14 +152,14 @@ export class BetBot {
 
         // Handle different modal actions
         switch (action) {
-        case 'place_bet':
-          await this.handlePlaceBetModalSubmit(interaction, params);
-          break;
-        default:
-          await interaction.reply({
-            content: '❌ Unknown modal action',
-            ephemeral: true,
-          });
+          case 'place_bet':
+            await this.handlePlaceBetModalSubmit(interaction, params);
+            break;
+          default:
+            await interaction.reply({
+              content: '❌ Unknown modal action',
+              ephemeral: true,
+            });
         }
       } catch (error) {
         Logger.error('Modal', `Error handling modal interaction: ${error}`);
@@ -219,7 +219,7 @@ export class BetBot {
 
       // Send a deprecation notice
       msg.reply(
-        '⚠️ Message commands are deprecated. Please use slash commands instead (type / to see available commands).',
+        '⚠️ Message commands are deprecated. Please use slash commands instead (type / to see available commands).'
       );
     });
   }
@@ -790,7 +790,7 @@ export class BetBot {
       // User wants to check someone else's balance
       const targetBalance = this.balanceManager.getBalance(targetUser.id);
       await interaction.reply(
-        `💰 **${targetUser.username}'s Balance**: ${targetBalance} PunaCoins`,
+        `💰 **${targetUser.username}'s Balance**: ${targetBalance} PunaCoins`
       );
       Logger.command(userId, username, `/balance user:${targetUser.username}`);
     } else {
@@ -848,86 +848,86 @@ export class BetBot {
     Logger.command(userId, username, `/match ${subCommand}`);
 
     switch (subCommand) {
-    case 'create': {
-      // Check if user has admin permission for creating matches
-      if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.reply({
-          content: '🚫 **Access Denied**: Only administrators can create matches.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      const matchType = interaction.options.getString('type', true);
-
-      if (matchType === '1v1') {
-        // Handle 1v1 match creation
-        const user1 = interaction.options.getUser('participant1');
-        const user2 = interaction.options.getUser('participant2');
-
-        if (!user1 || !user2) {
+      case 'create': {
+        // Check if user has admin permission for creating matches
+        if (!interaction.memberPermissions?.has('Administrator')) {
           await interaction.reply({
-            content: '❌ **Error**: Both participants are required for 1v1 matches.',
+            content: '🚫 **Access Denied**: Only administrators can create matches.',
             ephemeral: true,
           });
           return;
         }
 
-        // Check if both users are different
-        if (user1.id === user2.id) {
+        const matchType = interaction.options.getString('type', true);
+
+        if (matchType === '1v1') {
+          // Handle 1v1 match creation
+          const user1 = interaction.options.getUser('participant1');
+          const user2 = interaction.options.getUser('participant2');
+
+          if (!user1 || !user2) {
+            await interaction.reply({
+              content: '❌ **Error**: Both participants are required for 1v1 matches.',
+              ephemeral: true,
+            });
+            return;
+          }
+
+          // Check if both users are different
+          if (user1.id === user2.id) {
+            await interaction.reply({
+              content: '❌ **Error**: You cannot create a 1v1 match between the same user.',
+              ephemeral: true,
+            });
+            return;
+          }
+
+          // Verify that both users exist in the database
+          const user1Exists = userRepository.exists(user1.id);
+          const user2Exists = userRepository.exists(user2.id);
+
+          if (!user1Exists || !user2Exists) {
+            await interaction.reply({
+              content: `❌ **Error**: ${
+                !user1Exists ? user1.username : user2.username
+              } is not initialized. Use /init to add them to the system first.`,
+              ephemeral: true,
+            });
+            return;
+          }
+
+          // Create a 1v1 match
+          const match = this.matchManager.createUserMatch(
+            user1.id,
+            user1.username,
+            user2.id,
+            user2.username
+          );
+
+          // Calculate time until auto-start for this specific match
+          const timeRemaining = this.matchManager.getBettingTimeRemaining(match.id);
+          const minutesRemaining = Math.floor(timeRemaining / 60);
+          const secondsRemaining = timeRemaining % 60;
+          const timeRemainingStr = `${minutesRemaining}m ${secondsRemaining}s`;
+
+          // Create buttons for player betting
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`bet_match:${match.id}:${user1.id}`)
+              .setLabel(`Bet on ${user1.username}`)
+              .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+              .setCustomId(`bet_match:${match.id}:${user2.id}`)
+              .setLabel(`Bet on ${user2.username}`)
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId(`show_match_bets:${match.id}`)
+              .setLabel('See All Bets')
+              .setStyle(ButtonStyle.Secondary)
+          );
+
           await interaction.reply({
-            content: '❌ **Error**: You cannot create a 1v1 match between the same user.',
-            ephemeral: true,
-          });
-          return;
-        }
-
-        // Verify that both users exist in the database
-        const user1Exists = userRepository.exists(user1.id);
-        const user2Exists = userRepository.exists(user2.id);
-
-        if (!user1Exists || !user2Exists) {
-          await interaction.reply({
-            content: `❌ **Error**: ${
-              !user1Exists ? user1.username : user2.username
-            } is not initialized. Use /init to add them to the system first.`,
-            ephemeral: true,
-          });
-          return;
-        }
-
-        // Create a 1v1 match
-        const match = this.matchManager.createUserMatch(
-          user1.id,
-          user1.username,
-          user2.id,
-          user2.username,
-        );
-
-        // Calculate time until auto-start for this specific match
-        const timeRemaining = this.matchManager.getBettingTimeRemaining(match.id);
-        const minutesRemaining = Math.floor(timeRemaining / 60);
-        const secondsRemaining = timeRemaining % 60;
-        const timeRemainingStr = `${minutesRemaining}m ${secondsRemaining}s`;
-
-        // Create buttons for player betting
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`bet_match:${match.id}:${user1.id}`)
-            .setLabel(`Bet on ${user1.username}`)
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId(`bet_match:${match.id}:${user2.id}`)
-            .setLabel(`Bet on ${user2.username}`)
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId(`show_match_bets:${match.id}`)
-            .setLabel('See All Bets')
-            .setStyle(ButtonStyle.Secondary),
-        );
-
-        await interaction.reply({
-          content: `
+            content: `
 🎮 **1v1 Match #${match.id} Created!**
 **${user1.username}** 🆚 **${user2.username}**
 
@@ -940,57 +940,57 @@ export class BetBot {
 
 Good luck! 🍀
           `,
-          components: [row],
-        });
-      } else if (matchType === 'team') {
-        // Handle team match creation
-        const team1 = interaction.options.getString('team1');
-        const team2 = interaction.options.getString('team2');
-
-        if (!team1 || !team2) {
-          await interaction.reply({
-            content: '❌ **Error**: Both team names are required for team matches.',
-            ephemeral: true,
+            components: [row],
           });
-          return;
-        }
+        } else if (matchType === 'team') {
+          // Handle team match creation
+          const team1 = interaction.options.getString('team1');
+          const team2 = interaction.options.getString('team2');
 
-        // Check if both teams are different
-        if (team1.toLowerCase() === team2.toLowerCase()) {
+          if (!team1 || !team2) {
+            await interaction.reply({
+              content: '❌ **Error**: Both team names are required for team matches.',
+              ephemeral: true,
+            });
+            return;
+          }
+
+          // Check if both teams are different
+          if (team1.toLowerCase() === team2.toLowerCase()) {
+            await interaction.reply({
+              content: '❌ **Error**: You cannot create a match between the same team.',
+              ephemeral: true,
+            });
+            return;
+          }
+
+          // Create a team match
+          const match = this.matchManager.createTeamMatch(team1, team2);
+
+          // Calculate time until auto-start for this specific match
+          const timeRemaining = this.matchManager.getBettingTimeRemaining(match.id);
+          const minutesRemaining = Math.floor(timeRemaining / 60);
+          const secondsRemaining = timeRemaining % 60;
+          const timeRemainingStr = `${minutesRemaining}m ${secondsRemaining}s`;
+
+          // Create buttons for team betting
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`bet_match:${match.id}:${team1}`)
+              .setLabel(`Bet on ${team1}`)
+              .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+              .setCustomId(`bet_match:${match.id}:${team2}`)
+              .setLabel(`Bet on ${team2}`)
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId(`show_match_bets:${match.id}`)
+              .setLabel('See All Bets')
+              .setStyle(ButtonStyle.Secondary)
+          );
+
           await interaction.reply({
-            content: '❌ **Error**: You cannot create a match between the same team.',
-            ephemeral: true,
-          });
-          return;
-        }
-
-        // Create a team match
-        const match = this.matchManager.createTeamMatch(team1, team2);
-
-        // Calculate time until auto-start for this specific match
-        const timeRemaining = this.matchManager.getBettingTimeRemaining(match.id);
-        const minutesRemaining = Math.floor(timeRemaining / 60);
-        const secondsRemaining = timeRemaining % 60;
-        const timeRemainingStr = `${minutesRemaining}m ${secondsRemaining}s`;
-
-        // Create buttons for team betting
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`bet_match:${match.id}:${team1}`)
-            .setLabel(`Bet on ${team1}`)
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId(`bet_match:${match.id}:${team2}`)
-            .setLabel(`Bet on ${team2}`)
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId(`show_match_bets:${match.id}`)
-            .setLabel('See All Bets')
-            .setStyle(ButtonStyle.Secondary),
-        );
-
-        await interaction.reply({
-          content: `
+            content: `
 🎮 **Team Match #${match.id} Created!**
 **${team1}** 🆚 **${team2}**
 
@@ -1003,170 +1003,170 @@ Good luck! 🍀
 
 Good luck! 🍀
           `,
-          components: [row],
-        });
+            components: [row],
+          });
+        }
+        break;
       }
-      break;
-    }
-    case 'start': {
-      // Check admin permissions
-      if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.reply({
-          content: '🚫 **Access Denied**: Only administrators can start matches.',
-          ephemeral: true,
-        });
-        return;
-      }
+      case 'start': {
+        // Check admin permissions
+        if (!interaction.memberPermissions?.has('Administrator')) {
+          await interaction.reply({
+            content: '🚫 **Access Denied**: Only administrators can start matches.',
+            ephemeral: true,
+          });
+          return;
+        }
 
-      const matchId = interaction.options.getInteger('match_id', true);
+        const matchId = interaction.options.getInteger('match_id', true);
 
-      // Start the match
-      const result = this.matchManager.startMatch(matchId);
-      if (result.success) {
-        // Get match and bet statistics
-        const matchData = result.data.match;
-        const betStats = result.data.bets;
+        // Start the match
+        const result = this.matchManager.startMatch(matchId);
+        if (result.success) {
+          // Get match and bet statistics
+          const matchData = result.data.match;
+          const betStats = result.data.bets;
 
-        // Create an embed for a more visually appealing announcement
-        const matchStartEmbed = new EmbedBuilder()
-          .setColor(Colors.Gold)
-          .setTitle(`🏆 Match #${matchId} Has Started!`)
-          .setDescription(
-            `**${matchData.team1}** 🆚 **${matchData.team2}**\n⏰ **Betting is now CLOSED!**`,
-          )
-          .addFields(
-            {
-              name: '📊 Betting Statistics',
-              value: `Total Bets: **${betStats.total}** (${betStats.totalAmount} PunaCoins)`,
-              inline: false,
-            },
-            {
-              name: `${matchData.team1}`,
-              value: `${betStats.team1.count} bets\n${betStats.team1.amount} PunaCoins`,
-              inline: true,
-            },
-            {
-              name: '📈 Odds',
-              value:
+          // Create an embed for a more visually appealing announcement
+          const matchStartEmbed = new EmbedBuilder()
+            .setColor(Colors.Gold)
+            .setTitle(`🏆 Match #${matchId} Has Started!`)
+            .setDescription(
+              `**${matchData.team1}** 🆚 **${matchData.team2}**\n⏰ **Betting is now CLOSED!**`
+            )
+            .addFields(
+              {
+                name: '📊 Betting Statistics',
+                value: `Total Bets: **${betStats.total}** (${betStats.totalAmount} PunaCoins)`,
+                inline: false,
+              },
+              {
+                name: `${matchData.team1}`,
+                value: `${betStats.team1.count} bets\n${betStats.team1.amount} PunaCoins`,
+                inline: true,
+              },
+              {
+                name: '📈 Odds',
+                value:
                   betStats.totalAmount > 0
                     ? `${((betStats.team1.amount / betStats.totalAmount) * 100).toFixed(1)}% : ${(
-                      (betStats.team2.amount / betStats.totalAmount) *
+                        (betStats.team2.amount / betStats.totalAmount) *
                         100
-                    ).toFixed(1)}%`
+                      ).toFixed(1)}%`
                     : '50% : 50%',
-              inline: true,
-            },
-            {
-              name: `${matchData.team2}`,
-              value: `${betStats.team2.count} bets\n${betStats.team2.amount} PunaCoins`,
-              inline: true,
-            },
-          )
-          .setFooter({ text: 'The match result will be announced soon!' })
-          .setTimestamp();
+                inline: true,
+              },
+              {
+                name: `${matchData.team2}`,
+                value: `${betStats.team2.count} bets\n${betStats.team2.amount} PunaCoins`,
+                inline: true,
+              }
+            )
+            .setFooter({ text: 'The match result will be announced soon!' })
+            .setTimestamp();
 
-        // Add button to see all bets
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`show_match_bets:${matchId}`)
-            .setLabel('See All Bets')
-            .setStyle(ButtonStyle.Primary),
-        );
+          // Add button to see all bets
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`show_match_bets:${matchId}`)
+              .setLabel('See All Bets')
+              .setStyle(ButtonStyle.Primary)
+          );
 
-        // Send the enhanced announcement
-        await interaction.reply({
-          embeds: [matchStartEmbed],
-          components: [row],
-        });
-      } else {
-        await interaction.reply({
-          content: `❌ **Error**: ${result.message}`,
-          ephemeral: true,
-        });
+          // Send the enhanced announcement
+          await interaction.reply({
+            embeds: [matchStartEmbed],
+            components: [row],
+          });
+        } else {
+          await interaction.reply({
+            content: `❌ **Error**: ${result.message}`,
+            ephemeral: true,
+          });
+        }
+        break;
       }
-      break;
-    }
-    case 'cancel': {
-      // Check admin permissions
-      if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.reply({
-          content: '🚫 **Access Denied**: Only administrators can cancel matches.',
-          ephemeral: true,
-        });
-        return;
+      case 'cancel': {
+        // Check admin permissions
+        if (!interaction.memberPermissions?.has('Administrator')) {
+          await interaction.reply({
+            content: '🚫 **Access Denied**: Only administrators can cancel matches.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const matchId = interaction.options.getInteger('match_id', true);
+
+        // Cancel the match
+        const result = this.matchManager.cancelMatch(matchId);
+        if (result.success) {
+          await interaction.reply(
+            `✅ Match #${matchId} has been canceled. All bets have been refunded.`
+          );
+        } else {
+          await interaction.reply({
+            content: `❌ **Error**: ${result.message}`,
+            ephemeral: true,
+          });
+        }
+        break;
       }
+      case 'result': {
+        // Check admin permissions
+        if (!interaction.memberPermissions?.has('Administrator')) {
+          await interaction.reply({
+            content: '🚫 **Access Denied**: Only administrators can set match results.',
+            ephemeral: true,
+          });
+          return;
+        }
 
-      const matchId = interaction.options.getInteger('match_id', true);
+        const matchId = interaction.options.getInteger('match_id', true);
 
-      // Cancel the match
-      const result = this.matchManager.cancelMatch(matchId);
-      if (result.success) {
-        await interaction.reply(
-          `✅ Match #${matchId} has been canceled. All bets have been refunded.`,
-        );
-      } else {
-        await interaction.reply({
-          content: `❌ **Error**: ${result.message}`,
-          ephemeral: true,
-        });
-      }
-      break;
-    }
-    case 'result': {
-      // Check admin permissions
-      if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.reply({
-          content: '🚫 **Access Denied**: Only administrators can set match results.',
-          ephemeral: true,
-        });
-        return;
-      }
+        // Check if this is a regular match
+        const match = this.matchManager.getMatch(matchId);
 
-      const matchId = interaction.options.getInteger('match_id', true);
+        if (match) {
+          if (match.match_type === '1v1') {
+            // Handle 1v1 match result
+            const winner = interaction.options.getUser('winner', true);
 
-      // Check if this is a regular match
-      const match = this.matchManager.getMatch(matchId);
+            // Validate winner is in the match
+            if (match.player1_id !== winner.id && match.player2_id !== winner.id) {
+              await interaction.reply({
+                content: `❌ **Error**: User "${winner.username}" is not part of Match #${matchId}.`,
+                ephemeral: true,
+              });
+              return;
+            }
 
-      if (match) {
-        if (match.match_type === '1v1') {
-          // Handle 1v1 match result
-          const winner = interaction.options.getUser('winner', true);
+            // Set match result
+            const resultResponse = this.matchManager.finishMatch(matchId, winner.id);
 
-          // Validate winner is in the match
-          if (match.player1_id !== winner.id && match.player2_id !== winner.id) {
-            await interaction.reply({
-              content: `❌ **Error**: User "${winner.username}" is not part of Match #${matchId}.`,
-              ephemeral: true,
-            });
-            return;
-          }
+            if (resultResponse.success) {
+              // Get the updated match data
+              const matchData = this.matchManager.getMatch(matchId);
+              if (matchData && matchData.winner === winner.id) {
+                const bets = this.matchManager.getMatchBets(matchData.id);
+                const totalBets = bets.length;
+                const totalAmount = bets.reduce((sum, bet) => sum + bet.amount, 0);
 
-          // Set match result
-          const resultResponse = this.matchManager.finishMatch(matchId, winner.id);
-
-          if (resultResponse.success) {
-            // Get the updated match data
-            const matchData = this.matchManager.getMatch(matchId);
-            if (matchData && matchData.winner === winner.id) {
-              const bets = this.matchManager.getMatchBets(matchData.id);
-              const totalBets = bets.length;
-              const totalAmount = bets.reduce((sum, bet) => sum + bet.amount, 0);
-
-              // Generate winners list
-              const winningBets = bets.filter(b => b.team === winner.id);
-              const winnersList =
+                // Generate winners list
+                const winningBets = bets.filter(b => b.team === winner.id);
+                const winnersList =
                   winningBets.length > 0
                     ? winningBets
-                      .sort((a, b) => b.amount - a.amount)
-                      .slice(0, 5)
-                      .map(
-                        b =>
-                          `• <@${b.user_id}>: ${b.amount} PunaCoins → ${b.amount * 2} PunaCoins`,
-                      )
-                      .join('\n')
+                        .sort((a, b) => b.amount - a.amount)
+                        .slice(0, 5)
+                        .map(
+                          b =>
+                            `• <@${b.user_id}>: ${b.amount} PunaCoins → ${b.amount * 2} PunaCoins`
+                        )
+                        .join('\n')
                     : 'No winning bets';
 
-              await interaction.reply(`
+                await interaction.reply(`
 🏆 **MATCH RESULTS** 🏆
 **Match #${matchData.id}**: **${matchData.team1}** 🆚 **${matchData.team2}**
 
@@ -1177,52 +1177,52 @@ ${winnersList}
 
 Congratulations to all winners! Your bets have been paid out at 2x.
                 `);
+              }
+            } else {
+              await interaction.reply({
+                content: `❌ ${resultResponse.message}`,
+                ephemeral: true,
+              });
             }
-          } else {
-            await interaction.reply({
-              content: `❌ ${resultResponse.message}`,
-              ephemeral: true,
-            });
-          }
-        } else if (match.match_type === 'team') {
-          // Handle team match result
-          const team = interaction.options.getString('team', true);
+          } else if (match.match_type === 'team') {
+            // Handle team match result
+            const team = interaction.options.getString('team', true);
 
-          // Validate team is in the match
-          if (match.team1 !== team && match.team2 !== team) {
-            await interaction.reply({
-              content: `❌ **Error**: Team "${team}" is not part of Match #${matchId}.`,
-              ephemeral: true,
-            });
-            return;
-          }
+            // Validate team is in the match
+            if (match.team1 !== team && match.team2 !== team) {
+              await interaction.reply({
+                content: `❌ **Error**: Team "${team}" is not part of Match #${matchId}.`,
+                ephemeral: true,
+              });
+              return;
+            }
 
-          // Set match result
-          const resultResponse = this.matchManager.finishTeamMatch(matchId, team);
+            // Set match result
+            const resultResponse = this.matchManager.finishTeamMatch(matchId, team);
 
-          if (resultResponse.success) {
-            // Get the updated match data
-            const matchData = this.matchManager.getMatch(matchId);
-            if (matchData && matchData.winner === team) {
-              const bets = this.matchManager.getMatchBets(matchData.id);
-              const totalBets = bets.length;
-              const totalAmount = bets.reduce((sum, bet) => sum + bet.amount, 0);
+            if (resultResponse.success) {
+              // Get the updated match data
+              const matchData = this.matchManager.getMatch(matchId);
+              if (matchData && matchData.winner === team) {
+                const bets = this.matchManager.getMatchBets(matchData.id);
+                const totalBets = bets.length;
+                const totalAmount = bets.reduce((sum, bet) => sum + bet.amount, 0);
 
-              // Generate winners list
-              const winningBets = bets.filter(b => b.team === team);
-              const winnersList =
+                // Generate winners list
+                const winningBets = bets.filter(b => b.team === team);
+                const winnersList =
                   winningBets.length > 0
                     ? winningBets
-                      .sort((a, b) => b.amount - a.amount)
-                      .slice(0, 5)
-                      .map(
-                        b =>
-                          `• <@${b.user_id}>: ${b.amount} PunaCoins → ${b.amount * 2} PunaCoins`,
-                      )
-                      .join('\n')
+                        .sort((a, b) => b.amount - a.amount)
+                        .slice(0, 5)
+                        .map(
+                          b =>
+                            `• <@${b.user_id}>: ${b.amount} PunaCoins → ${b.amount * 2} PunaCoins`
+                        )
+                        .join('\n')
                     : 'No winning bets';
 
-              await interaction.reply(`
+                await interaction.reply(`
 🏆 **TEAM MATCH RESULTS** 🏆
 **Match #${matchData.id}**: **${matchData.team1}** 🆚 **${matchData.team2}**
 
@@ -1233,22 +1233,22 @@ ${winnersList}
 
 Congratulations to all winners! Your bets have been paid out at 2x.
                 `);
+              }
+            } else {
+              await interaction.reply({
+                content: `❌ ${resultResponse.message}`,
+                ephemeral: true,
+              });
             }
-          } else {
-            await interaction.reply({
-              content: `❌ ${resultResponse.message}`,
-              ephemeral: true,
-            });
           }
+        } else {
+          await interaction.reply({
+            content: `❌ **Error**: Match #${matchId} not found.`,
+            ephemeral: true,
+          });
         }
-      } else {
-        await interaction.reply({
-          content: `❌ **Error**: Match #${matchId} not found.`,
-          ephemeral: true,
-        });
+        break;
       }
-      break;
-    }
     }
   }
 
@@ -1265,48 +1265,48 @@ Congratulations to all winners! Your bets have been paid out at 2x.
     Logger.command(userId, username, `/event ${subCommand}`);
 
     switch (subCommand) {
-    case 'create': {
-      // Check admin permissions
-      if (!interaction.memberPermissions?.has('Administrator')) {
+      case 'create': {
+        // Check admin permissions
+        if (!interaction.memberPermissions?.has('Administrator')) {
+          await interaction.reply({
+            content: '🚫 **Access Denied**: Only administrators can create events.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const name = interaction.options.getString('name', true);
+        const description = interaction.options.getString('description') || '';
+        const participant = interaction.options.getUser('participant');
+
+        // Create the event
+        const event = this.eventManager.createEvent(name, description, participant?.id);
+
+        // Format the time remaining
+        const timeRemaining = this.eventManager.getBettingTimeRemaining(event.id);
+        const minutesRemaining = Math.floor(timeRemaining / 60);
+        const secondsRemaining = timeRemaining % 60;
+        const timeRemainingStr = `${minutesRemaining}m ${secondsRemaining}s`;
+
+        // Create buttons for event betting
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`bet_event:${event.id}:Yes`)
+            .setLabel('Bet on Yes')
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`bet_event:${event.id}:No`)
+            .setLabel('Bet on No')
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`show_event_bets:${event.id}`)
+            .setLabel('See All Bets')
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        // Send response
         await interaction.reply({
-          content: '🚫 **Access Denied**: Only administrators can create events.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      const name = interaction.options.getString('name', true);
-      const description = interaction.options.getString('description') || '';
-      const participant = interaction.options.getUser('participant');
-
-      // Create the event
-      const event = this.eventManager.createEvent(name, description, participant?.id);
-
-      // Format the time remaining
-      const timeRemaining = this.eventManager.getBettingTimeRemaining(event.id);
-      const minutesRemaining = Math.floor(timeRemaining / 60);
-      const secondsRemaining = timeRemaining % 60;
-      const timeRemainingStr = `${minutesRemaining}m ${secondsRemaining}s`;
-
-      // Create buttons for event betting
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`bet_event:${event.id}:Yes`)
-          .setLabel('Bet on Yes')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId(`bet_event:${event.id}:No`)
-          .setLabel('Bet on No')
-          .setStyle(ButtonStyle.Danger),
-        new ButtonBuilder()
-          .setCustomId(`show_event_bets:${event.id}`)
-          .setLabel('See All Bets')
-          .setStyle(ButtonStyle.Secondary),
-      );
-
-      // Send response
-      await interaction.reply({
-        content: `
+          content: `
 📊 **Event #${event.id} Created!**
 **${name}**
 ${description ? `*${description}*\n` : ''}
@@ -1320,31 +1320,31 @@ ${participant ? `**Participant**: <@${participant.id}>\n` : ''}
 
 Good luck! 🍀
       `,
-        components: [row],
-      });
-      break;
-    }
-    case 'start': {
-      // Check admin permissions
-      if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.reply({
-          content: '🚫 **Access Denied**: Only administrators can start events.',
-          ephemeral: true,
+          components: [row],
         });
-        return;
+        break;
       }
+      case 'start': {
+        // Check admin permissions
+        if (!interaction.memberPermissions?.has('Administrator')) {
+          await interaction.reply({
+            content: '🚫 **Access Denied**: Only administrators can start events.',
+            ephemeral: true,
+          });
+          return;
+        }
 
-      const eventId = interaction.options.getInteger('event_id', true);
+        const eventId = interaction.options.getInteger('event_id', true);
 
-      // Start the event
-      const result = this.eventManager.startEvent(eventId);
-      if (result.success) {
-        // Get event and bet statistics
-        const eventData = result.data.event;
-        const betStats = result.data.bets;
+        // Start the event
+        const result = this.eventManager.startEvent(eventId);
+        if (result.success) {
+          // Get event and bet statistics
+          const eventData = result.data.event;
+          const betStats = result.data.bets;
 
-        // Announce event start with statistics
-        await interaction.reply(`
+          // Announce event start with statistics
+          await interaction.reply(`
 ⏰ **BETTING CLOSED!** ⏰
 Event #${eventId} has started! Betting is now closed.
 
@@ -1357,75 +1357,75 @@ ${eventData.description ? `*${eventData.description}*\n` : ''}
 
 Total bets: ${betStats.total} (${betStats.totalAmount} PunaCoins)
         `);
-      } else {
-        await interaction.reply({
-          content: `❌ **Error**: ${result.message}`,
-          ephemeral: true,
-        });
+        } else {
+          await interaction.reply({
+            content: `❌ **Error**: ${result.message}`,
+            ephemeral: true,
+          });
+        }
+        break;
       }
-      break;
-    }
-    case 'cancel': {
-      // Check admin permissions
-      if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.reply({
-          content: '🚫 **Access Denied**: Only administrators can cancel events.',
-          ephemeral: true,
-        });
-        return;
+      case 'cancel': {
+        // Check admin permissions
+        if (!interaction.memberPermissions?.has('Administrator')) {
+          await interaction.reply({
+            content: '🚫 **Access Denied**: Only administrators can cancel events.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const eventId = interaction.options.getInteger('event_id', true);
+
+        // Cancel the event
+        const result = this.eventManager.cancelEvent(eventId);
+        if (result.success) {
+          await interaction.reply(
+            `✅ Event #${eventId} has been canceled. All bets have been refunded.`
+          );
+        } else {
+          await interaction.reply({
+            content: `❌ **Error**: ${result.message}`,
+            ephemeral: true,
+          });
+        }
+        break;
       }
+      case 'result': {
+        // Check admin permissions
+        if (!interaction.memberPermissions?.has('Administrator')) {
+          await interaction.reply({
+            content: '🚫 **Access Denied**: Only administrators can set event results.',
+            ephemeral: true,
+          });
+          return;
+        }
 
-      const eventId = interaction.options.getInteger('event_id', true);
+        const eventId = interaction.options.getInteger('event_id', true);
+        const outcome = interaction.options.getBoolean('outcome', true);
 
-      // Cancel the event
-      const result = this.eventManager.cancelEvent(eventId);
-      if (result.success) {
-        await interaction.reply(
-          `✅ Event #${eventId} has been canceled. All bets have been refunded.`,
-        );
-      } else {
-        await interaction.reply({
-          content: `❌ **Error**: ${result.message}`,
-          ephemeral: true,
-        });
-      }
-      break;
-    }
-    case 'result': {
-      // Check admin permissions
-      if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.reply({
-          content: '🚫 **Access Denied**: Only administrators can set event results.',
-          ephemeral: true,
-        });
-        return;
-      }
+        // Set the event result
+        const result = this.eventManager.setEventResult(eventId, outcome);
+        if (result.success) {
+          // Get event and winner data
+          const event = this.eventManager.getEventInfo(eventId);
+          if (event) {
+            const bets = this.eventManager.getEventBets(eventId);
 
-      const eventId = interaction.options.getInteger('event_id', true);
-      const outcome = interaction.options.getBoolean('outcome', true);
-
-      // Set the event result
-      const result = this.eventManager.setEventResult(eventId, outcome);
-      if (result.success) {
-        // Get event and winner data
-        const event = this.eventManager.getEventInfo(eventId);
-        if (event) {
-          const bets = this.eventManager.getEventBets(eventId);
-
-          // Generate winners list
-          const winningBets = bets.filter(b => b.outcome === outcome);
-          const winnersList =
+            // Generate winners list
+            const winningBets = bets.filter(b => b.outcome === outcome);
+            const winnersList =
               winningBets.length > 0
                 ? winningBets
-                  .sort((a, b) => b.amount - a.amount)
-                  .slice(0, 5)
-                  .map(
-                    b => `• <@${b.user_id}>: ${b.amount} PunaCoins → ${b.amount * 2} PunaCoins`,
-                  )
-                  .join('\n')
+                    .sort((a, b) => b.amount - a.amount)
+                    .slice(0, 5)
+                    .map(
+                      b => `• <@${b.user_id}>: ${b.amount} PunaCoins → ${b.amount * 2} PunaCoins`
+                    )
+                    .join('\n')
                 : 'No winning bets';
 
-          await interaction.reply(`
+            await interaction.reply(`
 🏆 **EVENT RESULTS** 🏆
 **Event #${event.id}**: ${event.title}
 ${event.description ? `*${event.description}*\n` : ''}
@@ -1437,15 +1437,15 @@ ${winnersList}
 
 Congratulations to all winners! Your bets have been paid out at 2x.
         `);
+          }
+        } else {
+          await interaction.reply({
+            content: `❌ **Error**: ${result.message}`,
+            ephemeral: true,
+          });
         }
-      } else {
-        await interaction.reply({
-          content: `❌ **Error**: ${result.message}`,
-          ephemeral: true,
-        });
+        break;
       }
-      break;
-    }
     }
   }
 
@@ -1492,7 +1492,7 @@ Congratulations to all winners! Your bets have been paid out at 2x.
             { name: 'Match', value: `**${match.team1}** vs **${match.team2}**`, inline: false },
             { name: 'Your Choice', value: `**${displayChoice}**`, inline: true },
             { name: 'Amount', value: `**${amount}** PunaCoins`, inline: true },
-            { name: 'Status', value: result.message, inline: false },
+            { name: 'Status', value: result.message, inline: false }
           )
           .setFooter({
             text: `Your current balance: ${this.balanceManager.getBalance(userId)} PunaCoins`,
@@ -1504,7 +1504,7 @@ Congratulations to all winners! Your bets have been paid out at 2x.
           new ButtonBuilder()
             .setCustomId(`show_match_bets:${id}`)
             .setLabel('See All Bets')
-            .setStyle(ButtonStyle.Primary),
+            .setStyle(ButtonStyle.Primary)
         );
 
         // Send private confirmation to the user
@@ -1535,7 +1535,7 @@ Congratulations to all winners! Your bets have been paid out at 2x.
           .addFields(
             { name: 'Match', value: `**${match.team1}** vs **${match.team2}**`, inline: false },
             { name: 'Choice', value: `**${displayChoice}**`, inline: true },
-            { name: 'Amount', value: `**${amount}** PunaCoins`, inline: true },
+            { name: 'Amount', value: `**${amount}** PunaCoins`, inline: true }
           )
           .setFooter({ text: `Match ID: ${id}` })
           .setTimestamp();
@@ -1562,7 +1562,7 @@ Congratulations to all winners! Your bets have been paid out at 2x.
               name: 'Current Balance',
               value: `**${this.balanceManager.getBalance(userId)}** PunaCoins`,
               inline: true,
-            },
+            }
           )
           .setFooter({ text: 'Try again with a different amount or match' })
           .setTimestamp();
@@ -1591,7 +1591,7 @@ Congratulations to all winners! Your bets have been paid out at 2x.
             { name: 'Event', value: `**${event.title}**`, inline: false },
             { name: 'Your Prediction', value: `**${option}**`, inline: true },
             { name: 'Amount', value: `**${amount}** PunaCoins`, inline: true },
-            { name: 'Status', value: result.message, inline: false },
+            { name: 'Status', value: result.message, inline: false }
           )
           .setFooter({
             text: `Your current balance: ${this.balanceManager.getBalance(userId)} PunaCoins`,
@@ -1603,7 +1603,7 @@ Congratulations to all winners! Your bets have been paid out at 2x.
           new ButtonBuilder()
             .setCustomId(`show_event_bets:${id}`)
             .setLabel('See All Bets')
-            .setStyle(ButtonStyle.Primary),
+            .setStyle(ButtonStyle.Primary)
         );
 
         // Send private confirmation to the user
@@ -1621,7 +1621,7 @@ Congratulations to all winners! Your bets have been paid out at 2x.
           .addFields(
             { name: 'Event', value: `**${event.title}**`, inline: false },
             { name: 'Prediction', value: `**${option}**`, inline: true },
-            { name: 'Amount', value: `**${amount}** PunaCoins`, inline: true },
+            { name: 'Amount', value: `**${amount}** PunaCoins`, inline: true }
           )
           .setFooter({ text: `Event ID: ${id}` })
           .setTimestamp();
@@ -1648,7 +1648,7 @@ Congratulations to all winners! Your bets have been paid out at 2x.
               name: 'Current Balance',
               value: `**${this.balanceManager.getBalance(userId)}** PunaCoins`,
               inline: true,
-            },
+            }
           )
           .setFooter({ text: 'Try again with a different amount or event' })
           .setTimestamp();
@@ -1672,7 +1672,7 @@ Congratulations to all winners! Your bets have been paid out at 2x.
           name: 'Tip',
           value: 'Use `/matches` or `/events` to see available options',
           inline: false,
-        },
+        }
       )
       .setFooter({
         text: `Your current balance: ${this.balanceManager.getBalance(userId)} PunaCoins`,
@@ -1791,29 +1791,29 @@ Congratulations to all winners! Your bets have been paid out at 2x.
 
           let description;
           switch (tx.type) {
-          case 'init':
-            description = 'Initial balance';
-            break;
-          case 'bet':
-            description = `Placed bet #${tx.reference_id}`;
-            break;
-          case 'payout':
-            description = `Winnings from bet #${tx.reference_id}`;
-            break;
-          case 'refund':
-            description = `Refund from bet #${tx.reference_id}`;
-            break;
-          case 'event_bet':
-            description = `Placed event bet #${tx.reference_id}`;
-            break;
-          case 'event_payout':
-            description = `Winnings from event bet #${tx.reference_id}`;
-            break;
-          case 'donate':
-            description = 'Donation';
-            break;
-          default:
-            description = tx.type;
+            case 'init':
+              description = 'Initial balance';
+              break;
+            case 'bet':
+              description = `Placed bet #${tx.reference_id}`;
+              break;
+            case 'payout':
+              description = `Winnings from bet #${tx.reference_id}`;
+              break;
+            case 'refund':
+              description = `Refund from bet #${tx.reference_id}`;
+              break;
+            case 'event_bet':
+              description = `Placed event bet #${tx.reference_id}`;
+              break;
+            case 'event_payout':
+              description = `Winnings from event bet #${tx.reference_id}`;
+              break;
+            case 'donate':
+              description = 'Donation';
+              break;
+            default:
+              description = tx.type;
           }
 
           return `**${date}**: ${amountColor} ${description} - **${amountDisplay}** PunaCoins`;
@@ -1845,7 +1845,7 @@ Current balance: **${this.balanceManager.getBalance(userId)}** PunaCoins
    * @param {ChatInputCommandInteraction} interaction - Discord interaction
    */
   private async handleMatchesHistoryCommand(
-    interaction: ChatInputCommandInteraction,
+    interaction: ChatInputCommandInteraction
   ): Promise<void> {
     const userId = interaction.user.id;
     const username = interaction.user.username;
@@ -1878,34 +1878,34 @@ Current balance: **${this.balanceManager.getBalance(userId)}** PunaCoins
           let statusDisplay;
 
           switch (match.status) {
-          case 'pending':
-            statusDisplay = '⏳ Betting Open';
-            break;
-          case 'started':
-            statusDisplay = '🔄 In Progress';
-            break;
-          case 'done':
-            // For 1v1 matches, convert winner ID to username if needed
-            let displayWinner = match.winner;
+            case 'pending':
+              statusDisplay = '⏳ Betting Open';
+              break;
+            case 'started':
+              statusDisplay = '🔄 In Progress';
+              break;
+            case 'done':
+              // For 1v1 matches, convert winner ID to username if needed
+              let displayWinner = match.winner;
 
-            if (match.match_type === MatchType.ONE_VS_ONE && match.winner) {
-              // If winner is player1, show team1 (player1's username)
-              if (match.winner === match.player1_id) {
-                displayWinner = match.team1;
+              if (match.match_type === MatchType.ONE_VS_ONE && match.winner) {
+                // If winner is player1, show team1 (player1's username)
+                if (match.winner === match.player1_id) {
+                  displayWinner = match.team1;
+                }
+                // If winner is player2, show team2 (player2's username)
+                else if (match.winner === match.player2_id) {
+                  displayWinner = match.team2;
+                }
               }
-              // If winner is player2, show team2 (player2's username)
-              else if (match.winner === match.player2_id) {
-                displayWinner = match.team2;
-              }
-            }
 
-            statusDisplay = `✅ Finished - Winner: **${displayWinner}**`;
-            break;
-          case 'canceled':
-            statusDisplay = '❌ Canceled';
-            break;
-          default:
-            statusDisplay = match.status;
+              statusDisplay = `✅ Finished - Winner: **${displayWinner}**`;
+              break;
+            case 'canceled':
+              statusDisplay = '❌ Canceled';
+              break;
+            default:
+              statusDisplay = match.status;
           }
 
           const matchType = match.match_type === 'team' ? 'Team Match' : '1v1 Match';
@@ -1935,7 +1935,7 @@ ${matchesList}
    * @param {ChatInputCommandInteraction} interaction - Discord interaction
    */
   private async handleEventsHistoryCommand(
-    interaction: ChatInputCommandInteraction,
+    interaction: ChatInputCommandInteraction
   ): Promise<void> {
     const userId = interaction.user.id;
     const username = interaction.user.username;
@@ -1964,24 +1964,24 @@ ${matchesList}
           let outcomeDisplay = '';
 
           switch (event.status) {
-          case 'pending':
-            statusDisplay = '⏳ Betting Open';
-            break;
-          case 'started':
-            statusDisplay = '🔄 In Progress';
-            break;
-          case 'done':
-            statusDisplay = '✅ Finished';
-            // Add outcome info if the event is done
-            if (event.success !== undefined) {
-              outcomeDisplay = `\nOutcome: **${event.success ? 'YES' : 'NO'}**`;
-            }
-            break;
-          case 'canceled':
-            statusDisplay = '❌ Canceled';
-            break;
-          default:
-            statusDisplay = event.status;
+            case 'pending':
+              statusDisplay = '⏳ Betting Open';
+              break;
+            case 'started':
+              statusDisplay = '🔄 In Progress';
+              break;
+            case 'done':
+              statusDisplay = '✅ Finished';
+              // Add outcome info if the event is done
+              if (event.success !== undefined) {
+                outcomeDisplay = `\nOutcome: **${event.success ? 'YES' : 'NO'}**`;
+              }
+              break;
+            case 'canceled':
+              statusDisplay = '❌ Canceled';
+              break;
+            default:
+              statusDisplay = event.status;
           }
 
           return `**Event #${event.id}**: ${event.title}
@@ -2089,7 +2089,7 @@ Need more help? Contact the server administrator.
         .setCustomId('flip_again')
         .setLabel('Flip Again')
         .setStyle(ButtonStyle.Primary)
-        .setEmoji('🔄'),
+        .setEmoji('🔄')
     );
 
     await interaction.reply({
@@ -2135,7 +2135,7 @@ Need more help? Contact the server administrator.
         .setCustomId(`random_again:${min}:${max}`)
         .setLabel('Generate Again')
         .setStyle(ButtonStyle.Primary)
-        .setEmoji('🔄'),
+        .setEmoji('🔄')
     );
 
     await interaction.reply({
@@ -2173,7 +2173,7 @@ Need more help? Contact the server administrator.
         .setCustomId('flip_again')
         .setLabel('Flip Again')
         .setStyle(ButtonStyle.Primary)
-        .setEmoji('🔄'),
+        .setEmoji('🔄')
     );
 
     await interaction.update({
@@ -2189,7 +2189,7 @@ Need more help? Contact the server administrator.
    */
   private async handleRandomAgainButton(
     interaction: ButtonInteraction,
-    params: string[],
+    params: string[]
   ): Promise<void> {
     const userId = interaction.user.id;
     const username = interaction.user.username;
@@ -2223,7 +2223,7 @@ Need more help? Contact the server administrator.
         .setCustomId(`random_again:${min}:${max}`)
         .setLabel('Generate Again')
         .setStyle(ButtonStyle.Primary)
-        .setEmoji('🔄'),
+        .setEmoji('🔄')
     );
 
     await interaction.update({
@@ -2239,7 +2239,7 @@ Need more help? Contact the server administrator.
    */
   private async handleBetMatchButton(
     interaction: ButtonInteraction,
-    params: string[],
+    params: string[]
   ): Promise<void> {
     const userId = interaction.user.id;
     const username = interaction.user.username;
@@ -2324,7 +2324,7 @@ Need more help? Contact the server administrator.
    */
   private async handleBetEventButton(
     interaction: ButtonInteraction,
-    params: string[],
+    params: string[]
   ): Promise<void> {
     const userId = interaction.user.id;
     const username = interaction.user.username;
@@ -2401,7 +2401,7 @@ Need more help? Contact the server administrator.
    */
   private async handleShowMatchBetsButton(
     interaction: ButtonInteraction,
-    params: string[],
+    params: string[]
   ): Promise<void> {
     const matchId = parseInt(params[0]);
     const userId = interaction.user.id;
@@ -2453,8 +2453,8 @@ Need more help? Contact the server administrator.
         match.status === 'done'
           ? Colors.Green
           : match.status === 'canceled'
-            ? Colors.Red
-            : Colors.Blue,
+          ? Colors.Red
+          : Colors.Blue
       )
       .setTitle(`Match #${match.id} Betting Summary`)
       .setDescription(`**${match.team1}** 🆚 **${match.team2}**`)
@@ -2479,7 +2479,7 @@ Need more help? Contact the server administrator.
           name: `${match.team2}`,
           value: `${team2Bets.length} bets • ${team2Total} PunaCoins (${team2Percent}%)`,
           inline: true,
-        },
+        }
       )
       .setFooter({
         text: `Match created at ${new Date(match.created_at as string).toLocaleString()}`,
@@ -2538,7 +2538,7 @@ Need more help? Contact the server administrator.
    */
   private async handleShowEventBetsButton(
     interaction: ButtonInteraction,
-    params: string[],
+    params: string[]
   ): Promise<void> {
     const eventId = parseInt(params[0]);
     const userId = interaction.user.id;
@@ -2581,8 +2581,8 @@ Need more help? Contact the server administrator.
         event.status === 'done'
           ? Colors.Green
           : event.status === 'canceled'
-            ? Colors.Red
-            : Colors.Purple,
+          ? Colors.Red
+          : Colors.Purple
       )
       .setTitle(`Event #${event.id} Betting Summary`)
       .setDescription(`**${event.title}**${event.description ? `\n*${event.description}*` : ''}`)
@@ -2603,7 +2603,7 @@ Need more help? Contact the server administrator.
           name: 'NO',
           value: `${noBets.length} bets • ${noTotal} PunaCoins (${noPercent}%)`,
           inline: true,
-        },
+        }
       )
       .setFooter({
         text: `Event created at ${new Date(event.created_at as string).toLocaleString()}`,
@@ -2654,7 +2654,7 @@ Need more help? Contact the server administrator.
    */
   private async handlePlaceBetModalSubmit(
     interaction: ModalSubmitInteraction,
-    params: string[],
+    params: string[]
   ): Promise<void> {
     const userId = interaction.user.id;
     const username = interaction.user.username;
@@ -2717,7 +2717,7 @@ Need more help? Contact the server administrator.
             { name: 'Match', value: `**${match.team1}** vs **${match.team2}**`, inline: false },
             { name: 'Your Choice', value: `**${displayChoice}**`, inline: true },
             { name: 'Amount', value: `**${amount}** PunaCoins`, inline: true },
-            { name: 'Status', value: result.message, inline: false },
+            { name: 'Status', value: result.message, inline: false }
           )
           .setFooter({
             text: `Your current balance: ${this.balanceManager.getBalance(userId)} PunaCoins`,
@@ -2729,7 +2729,7 @@ Need more help? Contact the server administrator.
           new ButtonBuilder()
             .setCustomId(`show_match_bets:${id}`)
             .setLabel('See All Bets')
-            .setStyle(ButtonStyle.Primary),
+            .setStyle(ButtonStyle.Primary)
         );
 
         // Send confirmation to user
@@ -2759,7 +2759,7 @@ Need more help? Contact the server administrator.
           .addFields(
             { name: 'Match', value: `**${match.team1}** vs **${match.team2}**`, inline: false },
             { name: 'Choice', value: `**${displayChoice}**`, inline: true },
-            { name: 'Amount', value: `**${amount}** PunaCoins`, inline: true },
+            { name: 'Amount', value: `**${amount}** PunaCoins`, inline: true }
           )
           .setFooter({ text: `Match ID: ${id}` })
           .setTimestamp();
@@ -2786,7 +2786,7 @@ Need more help? Contact the server administrator.
               name: 'Current Balance',
               value: `**${this.balanceManager.getBalance(userId)}** PunaCoins`,
               inline: true,
-            },
+            }
           )
           .setFooter({ text: 'Try again with a different amount or match' })
           .setTimestamp();
