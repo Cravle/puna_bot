@@ -38,7 +38,6 @@ const INTERVAL = 10_000; // 10 seconds
 export interface AternosStatus {
   status: 'online' | 'offline' | 'starting' | 'loading' | 'error' | 'unknown';
   timeLeft?: string | null; // Time string like '5:06' if online
-  message?: string; // Error or status message
 }
 
 export class Aternos {

@@ -2833,7 +2833,11 @@ Need more help? Contact the server administrator.
     // Even setting variables can delay things too much with Discord's 3-second limit
     try {
       // Discord has a 3-second timeout for interactions
-      await interaction.deferReply();
+      await interaction.deferReply().catch(e => {
+        Logger.error('AternosCmd', `Failed to defer interaction: ${e}`);
+        // If we can't defer, we can't proceed because Discord already timed out
+        return;
+      });
       Logger.info('AternosCmd', 'Interaction deferred, proceeding with Aternos operations');
     } catch (deferError) {
       Logger.error('AternosCmd', `Error during defer: ${deferError}`);
@@ -2853,7 +2857,6 @@ Need more help? Contact the server administrator.
     const aternosUsername = process.env.ATERNOS_USERNAME;
     const aternosPassword = process.env.ATERNOS_PASSWORD;
     const aternosServerId = process.env.ATERNOS_SERVER_ID;
-
     if (!aternosUsername || !aternosPassword || !aternosServerId) {
       try {
         await interaction.editReply({
@@ -2867,13 +2870,6 @@ Need more help? Contact the server administrator.
     }
 
     if (subCommand === 'start') {
-      // Immediately let the user know we're working on it
-      try {
-        await interaction.editReply('⏳ Initializing Aternos... (this may take a minute)');
-      } catch (replyError) {
-        Logger.error('AternosCmd', `Failed to edit startup reply: ${replyError}`);
-      }
-
       const aternosInstance = new Aternos(); // Create new instance for each command
       let finalStatus: AternosStatus | null = null;
       let errorMessage = 'An unexpected error occurred.';
@@ -2882,29 +2878,11 @@ Need more help? Contact the server administrator.
         Logger.info('AternosCmd', 'Initializing Aternos...');
         await aternosInstance.init();
 
-        try {
-          await interaction.editReply('⏳ Logging in to Aternos...');
-        } catch (replyError) {
-          Logger.error('AternosCmd', `Failed to edit login reply: ${replyError}`);
-        }
-
         Logger.info('AternosCmd', 'Logging in...');
         await aternosInstance.login(aternosUsername, aternosPassword);
 
-        try {
-          await interaction.editReply('⏳ Navigating to server page...');
-        } catch (replyError) {
-          Logger.error('AternosCmd', `Failed to edit navigation reply: ${replyError}`);
-        }
-
         Logger.info('AternosCmd', 'Navigating to server page...');
         await aternosInstance.goToServerPage(aternosServerId);
-
-        try {
-          await interaction.editReply('⏳ Checking server status...');
-        } catch (replyError) {
-          Logger.error('AternosCmd', `Failed to edit status check reply: ${replyError}`);
-        }
 
         // Check status before starting
         const currentStatus = await aternosInstance.checkServerStatus();
@@ -2942,7 +2920,8 @@ Need more help? Contact the server administrator.
               Logger.error('AternosCmd', `Failed to edit reply for success: ${replyError}`);
             }
           } else if (finalStatus.status === 'error') {
-            errorMessage = finalStatus.message || 'An error occurred while starting the server.';
+            errorMessage =
+              'Error occurred while waiting for server to start (Timeout?). Check logs.';
             try {
               await interaction.editReply(`❌ **Error**: ${errorMessage}`);
             } catch (replyError) {
@@ -2967,31 +2946,33 @@ Need more help? Contact the server administrator.
           }
         }
       } catch (error) {
-        Logger.error('AternosCmd', `Error in Aternos command: ${error}`);
-        // Make sure to close the browser on error
+        Logger.error('AternosCmd', `Error during /aternos start: ${error}`);
+        errorMessage = error instanceof Error ? error.message : String(error);
+        // Ensure reply is edited even on error
         try {
-          if (aternosInstance) await aternosInstance.close();
-        } catch (closeError) {
-          Logger.error('AternosCmd', `Error closing Aternos instance: ${closeError}`);
-        }
-
-        errorMessage =
-          error instanceof Error
-            ? error.message
-            : 'An unknown error occurred with the Aternos server.';
-
-        try {
-          await interaction.editReply(`❌ **Error**: ${errorMessage}`);
+          if (interaction.deferred) {
+            await interaction.editReply(
+              `❌ **Error**: Failed to start Aternos server. ${errorMessage}`
+            );
+          }
         } catch (replyError) {
-          Logger.error('AternosCmd', `Failed to edit reply with error: ${replyError}`);
+          Logger.error('AternosCmd', `Failed to edit reply on error: ${replyError}`);
         }
       } finally {
-        // Always try to close the browser
-        try {
-          await aternosInstance.close();
-        } catch (closeError) {
-          Logger.error('AternosCmd', `Error in final close: ${closeError}`);
-        }
+        Logger.info('AternosCmd', 'Closing Aternos browser...');
+        await aternosInstance.close().catch(e => {
+          Logger.error('AternosCmd', `Error closing browser: ${e}`);
+        });
+        Logger.info('AternosCmd', 'Aternos browser closed.');
+      }
+    } else {
+      // Handle unknown subcommands if any are added later
+      try {
+        await interaction.editReply({
+          content: '❌ Unknown Aternos command.',
+        });
+      } catch (replyError) {
+        Logger.error('AternosCmd', `Failed to edit reply for unknown command: ${replyError}`);
       }
     }
   }
